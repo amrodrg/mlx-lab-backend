@@ -17,5 +17,4 @@ def build_model(request):
     model.add(layers.Dense(10, activation='softmax'))
     model.build()
     result = model.to_json()
-    print(result)
     return Response({result})
