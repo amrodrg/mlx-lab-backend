@@ -49,24 +49,46 @@ def add_dense_layer(model, neurons_num, act):
 
 @api_view(['GET', 'POST'])
 def build_model(request):
-    X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
-    X_train, X_test, y_train, y_test = split_tein_test(X, y, 0.2)
-    print("--------------------------------------->")
-    print(X_train.shape)
-    print("--------------------------------------->")
-    model = empty_model()
-    model.add(layers.Dense(28))
-    model.add(layers.Dense(100))
-    model.add(layers.Dense(10))
-    model.add(layers.Dense(10))
-    model.add(layers.Dense(1))
-    model.compile(loss=tf.keras.losses.mae,
-                  optimizer=tf.keras.optimizers.Adam(),
-                  metrics=['mae']
-                  )
+    if request.method == "POST":
+        neuronsNum = request.data['neuronsNumber']
+        print("--------------------------------------->")
+        print(neuronsNum)
+        X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
+        X_train, X_test, y_train, y_test = split_tein_test(X, y, 0.2)
+        print("--------------------------------------->")
+        print(X_train.shape)
+        print("--------------------------------------->")
+        model = empty_model()
+        model.add(layers.Dense(neuronsNum))
+        model.compile(loss=tf.keras.losses.mae,
+                      optimizer=tf.keras.optimizers.Adam(),
+                      metrics=['mae']
+                      )
 
-    model.fit(X_train, y_train, epochs=5, verbose=0)
-    result = model.to_json()
-    result = json.loads(result)
-    # print(X_train)
-    return JsonResponse(result)
+        model.fit(X_train, y_train, epochs=5, verbose=0)
+        result = model.to_json()
+        result = json.loads(result)
+        # print(X_train)
+        return JsonResponse(result)
+    else:
+        X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
+        X_train, X_test, y_train, y_test = split_tein_test(X, y, 0.2)
+        print("--------------------------------------->")
+        print(X_train.shape)
+        print("--------------------------------------->")
+        model = empty_model()
+        model.add(layers.Dense(28))
+        model.add(layers.Dense(100))
+        model.add(layers.Dense(10))
+        model.add(layers.Dense(10))
+        model.add(layers.Dense(1))
+        model.compile(loss=tf.keras.losses.mae,
+                      optimizer=tf.keras.optimizers.Adam(),
+                      metrics=['mae']
+                      )
+
+        model.fit(X_train, y_train, epochs=5, verbose=0)
+        result = model.to_json()
+        result = json.loads(result)
+        # print(X_train)
+        return JsonResponse(result)
