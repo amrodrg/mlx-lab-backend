@@ -1,5 +1,6 @@
 from calendar import day_abbr
 import json
+from statistics import mode
 from unittest import result
 from django.shortcuts import render
 from django.http import JsonResponse
@@ -50,16 +51,23 @@ def add_dense_layer(model, neurons_num, act):
 @api_view(['GET', 'POST'])
 def build_model(request):
     if request.method == "POST":
-        neuronsNum = request.data['neuronsNumber']
+        neuronsNumList = request.data['neuronsNumber']
+        layersNum = request.data['layersNumber']
+
         print("--------------------------------------->")
-        print(neuronsNum)
+        print('Neurons Number: ', neuronsNumList)
+        print('Layers Number: ', layersNum)
         X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
         X_train, X_test, y_train, y_test = split_tein_test(X, y, 0.2)
         print("--------------------------------------->")
-        print(X_train.shape)
+        print('Data Shape: ', X_train.shape)
         print("--------------------------------------->")
+
         model = empty_model()
-        model.add(layers.Dense(neuronsNum))
+
+        for l in range(layersNum):
+            model.add(layers.Dense(neuronsNumList[l]))
+
         model.compile(loss=tf.keras.losses.mae,
                       optimizer=tf.keras.optimizers.Adam(),
                       metrics=['mae']
@@ -68,7 +76,6 @@ def build_model(request):
         model.fit(X_train, y_train, epochs=5, verbose=0)
         result = model.to_json()
         result = json.loads(result)
-        # print(X_train)
         return JsonResponse(result)
     else:
         X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
@@ -79,7 +86,6 @@ def build_model(request):
         model = empty_model()
         model.add(layers.Dense(28))
         model.add(layers.Dense(100))
-        model.add(layers.Dense(10))
         model.add(layers.Dense(10))
         model.add(layers.Dense(1))
         model.compile(loss=tf.keras.losses.mae,
