@@ -28,8 +28,8 @@ def load_data(data_link):
 
 def split_x_y(data_link, labels_name):
     data = load_data(data_link)
-    X = data.drop('charges', axis=1)
-    y = data['charges']
+    X = data.drop(labels_name, axis=1)
+    y = data[labels_name]
     return X, y
 
 
@@ -51,29 +51,49 @@ def add_dense_layer(model, neurons_num, act):
 @api_view(['GET', 'POST'])
 def build_model(request):
     if request.method == "POST":
-        neuronsNumList = request.data['neuronsNumber']
+        neuronsNumList = request.data['neuronsList']
+        activation_functions_list = request.data['activationList']
         layersNum = request.data['layersNumber']
+        model_name = request.data['modelName']
+        data_link = request.data['dataLink']
+        labels_name = request.data['labelsName']
+        epochs_number = request.data['epochsNumber']
+        testing_percentage = request.data['testingPercentage']/100
+        loss_function = request.data['lossFunction']
+        optimizer = request.data['optimizer']
+        metrics = request.data['metrics']
+
+        X, y = split_x_y(data_link, labels_name)
+        X_train, X_test, y_train, y_test = split_tein_test(
+            X, y, testing_percentage)
 
         print("--------------------------------------->")
-        print('Neurons Number: ', neuronsNumList)
+        print('Neurons Numbers: ', neuronsNumList)
+        print('Activation Functions List: ', activation_functions_list)
         print('Layers Number: ', layersNum)
-        X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
-        X_train, X_test, y_train, y_test = split_tein_test(X, y, 0.2)
+        print('Model Name: ', model_name)
+        print('Data Link: ', data_link)
+        print('Labels name: ', labels_name)
+        print('Epochs Nimber: ', epochs_number)
+        print('Testing Percentage: ', testing_percentage)
+        print('Loss Function: ', loss_function)
+        print('Optimizer Function: ', optimizer)
+        print('Evaluation Metrics: ', metrics)
         print("--------------------------------------->")
         print('Data Shape: ', X_train.shape)
-        print("--------------------------------------->")
+        print('****************************************>')
 
         model = empty_model()
 
         for l in range(layersNum):
             model.add(layers.Dense(neuronsNumList[l]))
 
-        model.compile(loss=tf.keras.losses.mae,
-                      optimizer=tf.keras.optimizers.Adam(),
-                      metrics=['mae']
+        model.compile(loss=loss_function,
+                      optimizer=optimizer,
+                      metrics=[metrics]
                       )
 
-        model.fit(X_train, y_train, epochs=5, verbose=0)
+        model.fit(X_train, y_train, epochs=epochs_number, verbose=0)
         result = model.to_json()
         result = json.loads(result)
         return JsonResponse(result)
