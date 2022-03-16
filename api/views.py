@@ -97,6 +97,7 @@ def build_model(request):
         result = model.to_json()
         result = json.loads(result)
         return JsonResponse(result)
+
     else:
         X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
         X_train, X_test, y_train, y_test = split_tein_test(X, y, 0.2)
