@@ -79,6 +79,7 @@ def build_model(request):
         print('Loss Function: ', loss_function)
         print('Optimizer Function: ', optimizer)
         print('Evaluation Metrics: ', metrics)
+        print('Username: ', request.user)
         print("--------------------------------------->")
         print('Data Shape: ', X_train.shape)
         print('****************************************>')
@@ -117,5 +118,29 @@ def build_model(request):
         model.fit(X_train, y_train, epochs=5, verbose=0)
         result = model.to_json()
         result = json.loads(result)
-        # print(X_train)
+        # model.save(tensorflow_models/model_name+userID)
         return JsonResponse(result)
+
+
+def evaluate_model(request):
+    # model = import(/asd/asda/sd)
+    # evaluate(model)
+    return
+
+
+def use_model(request):
+    # model = import(/asdas/asda/modeical_ID)
+    # model.predict(asdads/asd/asd.csv)
+    return
+
+##################################################### SHAP ######################################################
+
+
+def explain_model(request):
+    if request.method == "POST":
+        model_name = request.data['modelName']
+        # userID = request.user
+        # model = import(tensorflow_models/model_name,userID)
+        # model.explain(asdads/asd/asd.csv)
+        # return
+    return
