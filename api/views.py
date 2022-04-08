@@ -63,6 +63,10 @@ def build_model(request):
         optimizer = request.data['optimizer']
         metrics = request.data['metrics']
 
+        saving_formate = ".h5"
+        saving_name = model_name + saving_formate
+        saving_path = "saved_models/" + saving_name
+
         X, y = split_x_y(data_link, labels_name)
         X_train, X_test, y_train, y_test = split_tein_test(
             X, y, testing_percentage)
@@ -72,6 +76,7 @@ def build_model(request):
         print('Activation Functions List: ', activation_functions_list)
         print('Layers Number: ', layersNum)
         print('Model Name: ', model_name)
+        print('Saving Path: ', saving_path)
         print('Data Link: ', data_link)
         print('Labels name: ', labels_name)
         print('Epochs Nimber: ', epochs_number)
@@ -95,6 +100,9 @@ def build_model(request):
                       )
 
         model.fit(X_train, y_train, epochs=epochs_number, verbose=0)
+
+        model.save(saving_path)
+
         result = model.to_json()
         result = json.loads(result)
         return JsonResponse(result)
