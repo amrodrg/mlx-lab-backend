@@ -82,7 +82,7 @@ def build_model(request):
 
         X, y = split_x_y(data_link, labels_name)
         X_train, X_test, y_train, y_test = split_train_test(
-            X, y, testing_percentage)
+            X, y, testing_percentage, random_state=42)
 
         print("--------------------------------------->")
         print('Neurons Numbers: ', neuronsNumList)
@@ -196,14 +196,19 @@ def get_model_features(request):
     saving_path = "saved_models/" + saving_name
     loaded_model = tf.keras.models.load_model(saving_path)
 
-    
+    X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
 
-
-
-
-
+    print("--------------------------------------->")
+    print(X.columns)
+    print("--------------------------------------->")
 
     return JsonResponse()
+
+
+
+
+
+    
 
 @api_view(['POST'])
 def explain_model(request):
