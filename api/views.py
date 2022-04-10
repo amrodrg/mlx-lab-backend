@@ -14,12 +14,15 @@ from django.http import JsonResponse
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
-import tensorflow as tf
+import tensorflow as tf    
+tf.compat.v1.disable_v2_behavior()
 from django.http import HttpResponse, HttpResponseNotFound
 from tensorflow.keras import layers
 from tensorflow.keras import models
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import numpy as np
+
 
 # Variables
 INSURANCE_DATA_LINK = "https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/insurance.csv"
@@ -42,7 +45,7 @@ def split_x_y(data_link, labels_name):
     return X, y
 
 
-def split_tein_test(X, y, test_size):
+def split_train_test(X, y, test_size):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=42)
     return X_train, X_test, y_train, y_test
@@ -78,7 +81,7 @@ def build_model(request):
         saving_path = "saved_models/" + saving_name
 
         X, y = split_x_y(data_link, labels_name)
-        X_train, X_test, y_train, y_test = split_tein_test(
+        X_train, X_test, y_train, y_test = split_train_test(
             X, y, testing_percentage)
 
         print("--------------------------------------->")
@@ -119,7 +122,7 @@ def build_model(request):
 
     else:
         X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
-        X_train, X_test, y_train, y_test = split_tein_test(X, y, 0.2)
+        X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
         print("--------------------------------------->")
         print(X_train.shape)
         print("--------------------------------------->")
@@ -154,7 +157,7 @@ def evaluate_model(request):
         loaded_model = tf.keras.models.load_model(saving_path)
 
         X, y = split_x_y(data_link, labels_name)
-        X_train, X_test, y_train, y_test = split_tein_test(
+        X_train, X_test, y_train, y_test = split_train_test(
             X, y, testing_percentage)
 
         evaluation = loaded_model.evaluate(X_test, y_test)
@@ -183,66 +186,52 @@ def use_model(request):
 
 ##################################################### SHAP ######################################################
 
+@api_view(['GET'])
+def get_model_features(request):
 
-# @api_view(['GET'])
-# def explaine_model(request):
-
-#     X, y = load_diabetes(return_X_y=True)
-#     features = load_diabetes()['feature_names']
-
-#     X_train, X_test, y_train, y_test = train_test_split(
-#         X, y, test_size=0.33, random_state=42)
-
-#     model = make_pipeline(
-#         StandardScaler(),
-#         MLPRegressor(hidden_layer_sizes=(5,), activation='logistic',
-#                      max_iter=10000, learning_rate='invscaling', random_state=0)
-#     )
-
-#     model.fit(X_train, y_train)
-
-#     explainer = shap.KernelExplainer(model.predict, X_train)
-
-#     shap_values = explainer.shap_values(X_test, nsamples=100)
-
-#     print(shap_values)
-
-#     # shap_display_force = shap.force_plot(explainer.expected_value,
-#     #                                      shap_values[0, :], X_test[0, :], feature_names=features)
-
-#     shap_summary_plot = shap.summary_plot(shap_values, X_test, show=False)
-
-#     # shap_dependence_plot = shap.dependence_plot(0, shap_values, X_test)
-
-#     # shap_waterfall_plot = shap.waterfall_plot(shap_values, 10, show=True)
-
-#     shap.initjs()
-
-#     shap_html = f"<head>{shap.getjs()}</head><body>{shap_summary_plot}</body>"
-
-#     # plot_summary_plot = shap.summary_plot(shap_values, X_test, show=False)
-
-#     # savefig('test.svg', bbox_inches='tight') full size plot image
-#     # shap.save_html("index.htm", shap_summary_plot)
-
-#     return HttpResponse(shap_html)
-
-
-@api_view(['POST'])
-def explain_model(request):
     model_name = request.data['modelName']
 
-    # userID = request.user
-    # model = import(tensorflow_models/model_name,userID)
-    # model.explain(asdads/asd/asd.csv)
+    saving_formate = ".h5"
+    saving_name = model_name + saving_formate
+    saving_path = "saved_models/" + saving_name
+    loaded_model = tf.keras.models.load_model(saving_path)
 
-    return HttpResponse("null")
-
-
-@api_view(['GET'])
-def fetch_model(request):
     
 
 
 
-    return HttpResponse("null")
+
+
+
+    return JsonResponse()
+
+@api_view(['POST'])
+def explain_model(request):
+    model_name = request.data['modelName']
+    # data_link = request.data['dataLink']
+    # label_name = request.data['labelsName']
+    background_percentage = request.data['backgroundValue']
+
+    print(background_percentage)
+
+    # saving_formate = ".h5"
+    # saving_name = model_name + saving_formate
+    # saving_path = "saved_models/" + saving_name
+    # loaded_model = tf.keras.models.load_model(saving_path)
+    
+    # X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
+    # X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
+    
+    # print("--------------------------------------->")
+    # print('Data Shape: ', X_train.shape)
+    # print("--------------------------------------->")
+    
+    # explainer = shap.DeepExplainer(loaded_model, X_train)
+    # # shap_values = explainer.shap_values(X_train)
+    # shap_values = explainer.shap_values(X_test[:3].values)
+
+    # print("--------------------------------------->")
+    # print("Explainer: ", shap_values)
+    # print("--------------------------------------->")
+    
+    return HttpResponse("test")
