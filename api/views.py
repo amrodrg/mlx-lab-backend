@@ -69,7 +69,7 @@ def build_model(request):
 
         X, y = split_x_y(data_link, labels_name)
         X_train, X_test, y_train, y_test = split_tein_test(
-            X, y, testing_percentage)
+            X, y, testing_percentage, random_state=42)
 
         print("--------------------------------------->")
         print('Neurons Numbers: ', neuronsNumList)
