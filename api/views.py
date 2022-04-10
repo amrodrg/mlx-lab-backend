@@ -153,55 +153,65 @@ def use_model(request):
 ##################################################### SHAP ######################################################
 
 
-@api_view(['GET'])
-def explaine_model(request):
+# @api_view(['GET'])
+# def explaine_model(request):
 
-    X, y = load_diabetes(return_X_y=True)
-    features = load_diabetes()['feature_names']
+#     X, y = load_diabetes(return_X_y=True)
+#     features = load_diabetes()['feature_names']
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.33, random_state=42)
+#     X_train, X_test, y_train, y_test = train_test_split(
+#         X, y, test_size=0.33, random_state=42)
 
-    model = make_pipeline(
-        StandardScaler(),
-        MLPRegressor(hidden_layer_sizes=(5,), activation='logistic',
-                     max_iter=10000, learning_rate='invscaling', random_state=0)
-    )
+#     model = make_pipeline(
+#         StandardScaler(),
+#         MLPRegressor(hidden_layer_sizes=(5,), activation='logistic',
+#                      max_iter=10000, learning_rate='invscaling', random_state=0)
+#     )
 
-    model.fit(X_train, y_train)
+#     model.fit(X_train, y_train)
 
-    explainer = shap.KernelExplainer(model.predict, X_train)
+#     explainer = shap.KernelExplainer(model.predict, X_train)
 
-    shap_values = explainer.shap_values(X_test, nsamples=100)
+#     shap_values = explainer.shap_values(X_test, nsamples=100)
 
-    print(shap_values)
+#     print(shap_values)
 
-    # shap_display_force = shap.force_plot(explainer.expected_value,
-    #                                      shap_values[0, :], X_test[0, :], feature_names=features)
+#     # shap_display_force = shap.force_plot(explainer.expected_value,
+#     #                                      shap_values[0, :], X_test[0, :], feature_names=features)
 
-    shap_summary_plot = shap.summary_plot(shap_values, X_test, show=False)
+#     shap_summary_plot = shap.summary_plot(shap_values, X_test, show=False)
 
-    # shap_dependence_plot = shap.dependence_plot(0, shap_values, X_test)
+#     # shap_dependence_plot = shap.dependence_plot(0, shap_values, X_test)
 
-    # shap_waterfall_plot = shap.waterfall_plot(shap_values, 10, show=True)
+#     # shap_waterfall_plot = shap.waterfall_plot(shap_values, 10, show=True)
 
-    shap.initjs()
+#     shap.initjs()
 
-    shap_html = f"<head>{shap.getjs()}</head><body>{shap_summary_plot}</body>"
+#     shap_html = f"<head>{shap.getjs()}</head><body>{shap_summary_plot}</body>"
 
-    # plot_summary_plot = shap.summary_plot(shap_values, X_test, show=False)
+#     # plot_summary_plot = shap.summary_plot(shap_values, X_test, show=False)
 
-    # savefig('test.svg', bbox_inches='tight') full size plot image
-    # shap.save_html("index.htm", shap_summary_plot)
+#     # savefig('test.svg', bbox_inches='tight') full size plot image
+#     # shap.save_html("index.htm", shap_summary_plot)
 
-    return HttpResponse(shap_html)
+#     return HttpResponse(shap_html)
 
 
+@api_view(['POST'])
 def explain_model(request):
-    if request.method == "POST":
-        model_name = request.data['modelName']
-        # userID = request.user
-        # model = import(tensorflow_models/model_name,userID)
-        # model.explain(asdads/asd/asd.csv)
-        # return
-    return
+    model_name = request.data['modelName']
+
+    # userID = request.user
+    # model = import(tensorflow_models/model_name,userID)
+    # model.explain(asdads/asd/asd.csv)
+
+    return HttpResponse("null")
+
+
+@api_view(['GET'])
+def fetch_model(request):
+    
+
+
+
+    return HttpResponse("null")
