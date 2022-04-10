@@ -139,11 +139,7 @@ def build_model(request):
         # model.save(tensorflow_models/model_name+userID)
         return JsonResponse(result)
 
-<<<<<<< HEAD
-=======
-
 @api_view(['GET', 'POST'])
->>>>>>> div_amr
 def evaluate_model(request):
     if request.method == "POST":
         model_name = request.data['modelName']
@@ -179,7 +175,6 @@ def evaluate_model(request):
         print("==================> ", evaluation)
         return JsonResponse(evaluation_dict)
     return
-
 
 def use_model(request):
     # model = import(/asdas/asda/modeical_ID)
