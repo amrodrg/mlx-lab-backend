@@ -33,7 +33,7 @@ def split_x_y(data_link, labels_name):
     return X, y
 
 
-def split_tein_test(X, y, test_size):
+def split_train_test(X, y, test_size):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=42)
     return X_train, X_test, y_train, y_test
@@ -68,8 +68,8 @@ def build_model(request):
         saving_path = "saved_models/" + saving_name
 
         X, y = split_x_y(data_link, labels_name)
-        X_train, X_test, y_train, y_test = split_tein_test(
-            X, y, testing_percentage, random_state=42)
+        X_train, X_test, y_train, y_test = split_train_test(
+            X, y, testing_percentage)
 
         print("--------------------------------------->")
         print('Neurons Numbers: ', neuronsNumList)
@@ -145,7 +145,7 @@ def evaluate_model(request):
         loaded_model = tf.keras.models.load_model(saving_path)
 
         X, y = split_x_y(data_link, labels_name)
-        X_train, X_test, y_train, y_test = split_tein_test(
+        X_train, X_test, y_train, y_test = split_train_test(
             X, y, testing_percentage)
 
         evaluation = loaded_model.evaluate(X_test, y_test)
