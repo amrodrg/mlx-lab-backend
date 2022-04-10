@@ -139,9 +139,45 @@ def build_model(request):
         # model.save(tensorflow_models/model_name+userID)
         return JsonResponse(result)
 
+<<<<<<< HEAD
+=======
+
+@api_view(['GET', 'POST'])
+>>>>>>> div_amr
 def evaluate_model(request):
-    # model = import(/asd/asda/sd)
-    # evaluate(model)
+    if request.method == "POST":
+        model_name = request.data['modelName']
+        data_link = request.data['dataLink']
+        labels_name = request.data['labelsName']
+        testing_percentage = request.data['testingPercentage']/100
+
+        saving_formate = ".h5"
+        saving_name = model_name + saving_formate
+        saving_path = "saved_models/" + saving_name
+
+        loaded_model = tf.keras.models.load_model(saving_path)
+
+        X, y = split_x_y(data_link, labels_name)
+        X_train, X_test, y_train, y_test = split_tein_test(
+            X, y, testing_percentage)
+
+        evaluation = loaded_model.evaluate(X_test, y_test)
+        medain_value = y_train.median()
+        mean_value = y_train.mean()
+
+        evaluation_dict = {
+            'loss': float("{:.2f}".format(
+                evaluation[0])),
+            'accuracy': float("{:.2f}".format(
+                evaluation[1])),
+            'median': float("{:.2f}".format(
+                medain_value)),
+            'mean': float("{:.2f}".format(
+                mean_value)),
+        }
+
+        print("==================> ", evaluation)
+        return JsonResponse(evaluation_dict)
     return
 
 
