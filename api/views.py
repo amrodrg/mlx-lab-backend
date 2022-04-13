@@ -48,6 +48,15 @@ def add_dense_layer(model, neurons_num, act):
     model.add(layers.Dense(neurons_num, activation=act))
 
 
+def compile_model(model, loss_function, optimizer, metrics, learning_rate):
+    model.compile(
+        loss=loss_function,
+        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+        metrics=[metrics]
+    )
+    return model
+
+
 @api_view(['GET', 'POST'])
 def build_model(request):
     if request.method == "POST":
@@ -61,7 +70,8 @@ def build_model(request):
         testing_percentage = request.data['testingPercentage']/100
         loss_function = request.data['lossFunction']
         optimizer = request.data['optimizer']
-        metrics = request.data['metrics']
+        learning_rate = request.data['learningRate']
+        metrics = 'accuracy'
 
         saving_formate = ".h5"
         saving_name = model_name + saving_formate
@@ -83,6 +93,7 @@ def build_model(request):
         print('Testing Percentage: ', testing_percentage)
         print('Loss Function: ', loss_function)
         print('Optimizer Function: ', optimizer)
+        print('Learning Rate: ', learning_rate)
         print('Evaluation Metrics: ', metrics)
         print('Username: ', request.user)
         print("--------------------------------------->")
@@ -94,10 +105,8 @@ def build_model(request):
         for l in range(layersNum):
             model.add(layers.Dense(neuronsNumList[l]))
 
-        model.compile(loss=loss_function,
-                      optimizer=optimizer,
-                      metrics=[metrics]
-                      )
+        model = compile_model(model=model, loss_function=loss_function, optimizer=optimizer,
+                              metrics=metrics, learning_rate=learning_rate)
 
         model.fit(X_train, y_train, epochs=epochs_number, verbose=0)
 
