@@ -22,6 +22,8 @@ from tensorflow.keras import models
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
+import os
+import datetime
 
 
 # Variables
@@ -186,57 +188,71 @@ def use_model(request):
 
 ##################################################### SHAP ######################################################
 
-@api_view(['GET'])
-def get_model_features(request):
-
+@api_view(['POST'])
+def get_model_information(request):
     model_name = request.data['modelName']
+    data_link = request.data['dataLink']
+    label_name = request.data['labelName']
 
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
     saving_path = "saved_models/" + saving_name
-    loaded_model = tf.keras.models.load_model(saving_path)
+    last_modified = os.path.getmtime(saving_path)
+    dt_m = datetime.datetime.fromtimestamp(last_modified)
 
-    X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
+    X, y = split_x_y(data_link, label_name)
 
     print("--------------------------------------->")
-    print(X.columns)
+    print("model name: ", model_name)
+    print("--------------------------------------->")
+    print("label to predict: ", label_name)
+    print("--------------------------------------->")
+    print("data link: ", data_link)
+    print("--------------------------------------->")
+    print("model features: ", X.columns)
+    print("--------------------------------------->")
+    print("last modified: ", dt_m)
     print("--------------------------------------->")
 
-    return JsonResponse()
+    feature_dic = {}
+    feature_string = ""
+    for feature in X.columns:
+        feature_dic[feature] = ''
+        feature_string = feature_string + " " + feature
 
+    print(feature_string)
 
+    infoDic = {
+        "modelName": model_name,
+        "labelToPredict": label_name,
+        "dataLink": data_link,
+        "modelFeatures": feature_dic,
+        "modelFeaturesString": feature_string,
+        "lastModified": dt_m
+    }
 
-
-
-    
+    return JsonResponse(infoDic)
 
 @api_view(['POST'])
 def explain_model(request):
     model_name = request.data['modelName']
     # data_link = request.data['dataLink']
     # label_name = request.data['labelsName']
-    background_percentage = request.data['backgroundValue']
+    # background_value = request.data['backgroundValue']
 
-    print(background_percentage)
-
-    # saving_formate = ".h5"
-    # saving_name = model_name + saving_formate
-    # saving_path = "saved_models/" + saving_name
-    # loaded_model = tf.keras.models.load_model(saving_path)
+    saving_formate = ".h5"
+    saving_name = model_name + saving_formate
+    saving_path = "saved_models/" + saving_name
+    loaded_model = tf.keras.models.load_model(saving_path)
     
-    # X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
-    # X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
+    X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
+    X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
     
-    # print("--------------------------------------->")
-    # print('Data Shape: ', X_train.shape)
-    # print("--------------------------------------->")
-    
-    # explainer = shap.DeepExplainer(loaded_model, X_train)
-    # # shap_values = explainer.shap_values(X_train)
-    # shap_values = explainer.shap_values(X_test[:3].values)
+    explainer = shap.DeepExplainer(loaded_model, X_train)
+    shap_values = explainer.shap_values(X_test[:3].values)
 
     # print("--------------------------------------->")
-    # print("Explainer: ", shap_values)
+    # print(X.columns[np.argsort(np.abs(shap_values).mean(0))])
     # print("--------------------------------------->")
     
     return HttpResponse("test")
