@@ -49,11 +49,24 @@ def add_dense_layer(model, neurons_num, act):
 
 
 def compile_model(model, loss_function, optimizer, metrics, learning_rate):
-    model.compile(
-        loss=loss_function,
-        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-        metrics=[metrics]
-    )
+    if (optimizer == "adam"):
+        model.compile(
+            loss=loss_function,
+            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+            metrics=[metrics]
+        )
+    elif (optimizer == "sgd"):
+        model.compile(
+            loss=loss_function,
+            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+            metrics=[metrics]
+        )
+    else:
+        model.compile(
+            loss=loss_function,
+            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+            metrics=[metrics]
+        )
     return model
 
 
@@ -118,7 +131,7 @@ def build_model(request):
 
     else:
         X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
-        X_train, X_test, y_train, y_test = split_tein_test(X, y, 0.2)
+        X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
         print("--------------------------------------->")
         print(X_train.shape)
         print("--------------------------------------->")
