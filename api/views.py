@@ -11,6 +11,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras import models
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 
 # Variables
@@ -23,6 +24,16 @@ def load_data(data_link):
     data = pd.read_csv(data_link)
     data_one_hot = pd.get_dummies(data=data)
     # print(data_one_hot.head())
+    return data_one_hot
+
+
+def load_google_drive_data(data_link):
+    path = 'https://drive.google.com/uc?export=download&id=' + \
+        data_link.split('/')[-2]
+    data = pd.read_csv(path)
+    print(
+        "========== Data Loaded From Drive ===================================================>")
+    data_one_hot = pd.get_dummies(data=data)
     return data_one_hot
 
 
@@ -117,6 +128,7 @@ def build_model(request):
 
         for l in range(layersNum):
             model.add(layers.Dense(neuronsNumList[l]))
+        model.add(layers.Dense(1))
 
         model = compile_model(model=model, loss_function=loss_function, optimizer=optimizer,
                               metrics=metrics, learning_rate=learning_rate)
@@ -190,9 +202,54 @@ def evaluate_model(request):
     return
 
 
+@api_view(['GET', 'POST'])
 def use_model(request):
-    # model = import(/asdas/asda/modeical_ID)
-    # model.predict(asdads/asd/asd.csv)
+    if request.method == "POST":
+        print("========== Post Request ==========>")
+        model_name = request.data['modelName']
+        prediction_data_link = request.data['predictionDataLink']
+        original_data_link = "https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/insurance.csv"
+        labels_name = "charges"
+
+        saving_formate = ".h5"
+        saving_name = model_name + saving_formate
+        saving_path = "saved_models/" + saving_name
+
+        print(
+            "========== Loading Model ==================================================>")
+        loaded_model = tf.keras.models.load_model(saving_path)
+        print(
+            "========== Model Loaded ===================================================>")
+
+        X, y = split_x_y(original_data_link, labels_name)
+        X_train, X_test, y_train, y_test = split_train_test(
+            X, y, 0.1)
+        original_data_form = X_train.head()
+        print(
+            "========== Training Data imported ===================================================>")
+
+        loaded_data = load_google_drive_data(prediction_data_link)
+        print(
+            "========== Prediction Data Loaded ========================================>", loaded_data)
+
+        filled_dataFrame = pd.DataFrame(
+            0, index=np.arange(len(loaded_data)), columns=list(original_data_form.columns))
+
+        filled_dataFrame.update(loaded_data)
+
+        predictions = loaded_model.predict(filled_dataFrame)
+        print(filled_dataFrame)
+        print(
+            "========== Predictions ========================================>", predictions)
+
+        predictions = predictions.tolist()
+
+        predictions_list = []
+        for p in range(len(predictions)):
+            predictions_list.append(
+                {'idx': p, 'prediction': predictions[p][0]})
+
+        return JsonResponse(predictions_list, safe=False)
     return
 
 ##################################################### SHAP ######################################################
