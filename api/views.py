@@ -14,8 +14,7 @@ from django.http import JsonResponse
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
-import tensorflow as tf    
-tf.compat.v1.disable_v2_behavior()
+import tensorflow as tf
 from django.http import HttpResponse, HttpResponseNotFound
 from tensorflow.keras import layers
 from tensorflow.keras import models
@@ -210,6 +209,16 @@ def use_model(request):
 
 ##################################################### SHAP ######################################################
 
+def load_data_shap(data_link):
+    data = pd.read_csv(data_link)
+    return data
+
+def split_x_y_shap(data_link, labels_name):
+    data = load_data_shap(data_link)
+    X = data.drop(labels_name, axis=1)
+    y = data[labels_name]
+    return X, y
+
 @api_view(['POST'])
 def get_model_information(request):
     model_name = request.data['modelName']
@@ -222,7 +231,7 @@ def get_model_information(request):
     last_modified = os.path.getmtime(saving_path)
     dt_m = datetime.datetime.fromtimestamp(last_modified)
 
-    X, y = split_x_y(data_link, label_name)
+    X, y = split_x_y_shap(data_link, label_name)
 
     print("--------------------------------------->")
     print("model name: ", model_name)
@@ -236,19 +245,26 @@ def get_model_information(request):
     print("last modified: ", dt_m)
     print("--------------------------------------->")
 
-    feature_dic = {}
+    featureNewExampleArray = []
+    for feature in X.columns:
+        item = {"name": feature, "value":""}
+        featureNewExampleArray.append(item)
+
+    featureBooleanArray = []
+    for feature in X.columns:
+        item = {"name": feature, "value":"false"}
+        featureBooleanArray.append(item)
+
     feature_string = ""
     for feature in X.columns:
-        feature_dic[feature] = ''
         feature_string = feature_string + " " + feature
-
-    print(feature_string)
 
     infoDic = {
         "modelName": model_name,
         "labelToPredict": label_name,
         "dataLink": data_link,
-        "modelFeatures": feature_dic,
+        "modelNewExampleFeatures": featureNewExampleArray,
+        "modelBooleanFeatures": featureBooleanArray,
         "modelFeaturesString": feature_string,
         "lastModified": dt_m
     }
