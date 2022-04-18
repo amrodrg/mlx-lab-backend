@@ -302,15 +302,10 @@ def get_model_information(request):
     print("last modified: ", dt_m)
     print("--------------------------------------->")
 
-    featureNewExampleArray = []
+    featureArray = []
     for feature in X.columns:
-        item = {"name": feature, "value":""}
-        featureNewExampleArray.append(item)
-
-    featureBooleanArray = []
-    for feature in X.columns:
-        item = {"name": feature, "value":"false"}
-        featureBooleanArray.append(item)
+        item = {"name": feature}
+        featureArray.append(item)
 
     feature_string = ""
     for feature in X.columns:
@@ -320,8 +315,7 @@ def get_model_information(request):
         "modelName": model_name,
         "labelToPredict": label_name,
         "dataLink": data_link,
-        "modelNewExampleFeatures": featureNewExampleArray,
-        "modelBooleanFeatures": featureBooleanArray,
+        "featureArray": featureArray,
         "modelFeaturesString": feature_string,
         "lastModified": dt_m
     }
@@ -331,23 +325,59 @@ def get_model_information(request):
 @api_view(['POST'])
 def explain_model(request):
     model_name = request.data['modelName']
-    # data_link = request.data['dataLink']
-    # label_name = request.data['labelsName']
-    # background_value = request.data['backgroundValue']
+    background_value = request.data['backgroundValue']
+    example = request.data['example']
+    fBooleanArray = request.data['fBooleanArray']
+    fExampleArray = request.data['fExampleArray']
+    plot = request.data['plot']
+    data_link = request.data['dataLink']
+    label_name = request.data['labelName']
+
+    print("--------------------------------------->")
+    print("model name: ", model_name)
+    print("--------------------------------------->")
+    print("label to predict: ", label_name)
+    print("--------------------------------------->")
+    print("data link: ", data_link)
+    print("--------------------------------------->")
+    print("Background Value: ", background_value)
+    print("--------------------------------------->")
+    print("Example id: ", example)
+    print("--------------------------------------->")
+    print("plot id: ", plot)
+    print("--------------------------------------->")
+    print("boolean feature array: ", fBooleanArray)
+    print("--------------------------------------->")
+    print("example feature array: ", fExampleArray)
+    print("--------------------------------------->")
 
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
     saving_path = "saved_models/" + saving_name
     loaded_model = tf.keras.models.load_model(saving_path)
-    
-    X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
-    X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
-    
-    explainer = shap.DeepExplainer(loaded_model, X_train)
-    shap_values = explainer.shap_values(X_test[:3].values)
 
-    # print("--------------------------------------->")
-    # print(X.columns[np.argsort(np.abs(shap_values).mean(0))])
-    # print("--------------------------------------->")
+    background_value_int = int(background_value)
+
+    X, y = split_x_y(data_link, label_name)
+    X_train, X_test, y_train, y_test = split_train_test(X, y, background_value_int/100)
+
+    kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
+    # explainer = shap.DeepExplainer(loaded_model, X_train)
+
+    # pandas dataframe 
+    print(type(X_test))
+
+    # numpy.ndarray
+    print(X_test[:1].values)
+
+    # shap values for the first instance
+    shap_values = kernel_explainer.shap_values(X_test[:1].values)
+
+    print(shap_values)
+
+
+    # force plot with new example
+    # if plot == 1 and example == 1:
+
     
     return HttpResponse("test")
