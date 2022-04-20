@@ -364,20 +364,39 @@ def explain_model(request):
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
     # explainer = shap.DeepExplainer(loaded_model, X_train)
 
-    # pandas dataframe 
-    print(type(X_test))
+    ####################### For New Example
+    cleanExampleDic = {}
+    for key in fExampleArray.keys():
+        itemValue = fExampleArray.get(key)
 
-    # numpy.ndarray
-    print(X_test[:1].values)
+        if any(char.isdigit() for char in itemValue) :
+            itemValue = int(itemValue)
+
+        cleanExampleDic[key] = itemValue
+
+    # wrap user example in a data frame
+    exampleDataFrame = pd.DataFrame(cleanExampleDic, index=[0])
+    print("", exampleDataFrame)  
+
+    data_one_hot = pd.get_dummies(data=exampleDataFrame)
+    print("", data_one_hot)
+
+    original_data_form = X_train.head()
+    filled_dataFrame = pd.DataFrame(
+        0, index=np.arange(len(data_one_hot)), columns=list(original_data_form.columns))
+
+    filled_dataFrame.update(data_one_hot)
+
+    print("filled data frame: ", filled_dataFrame)
+    print("##########################")
 
     # shap values for the first instance
-    shap_values = kernel_explainer.shap_values(X_test[:1].values)
+    shap_values = kernel_explainer.shap_values(filled_dataFrame.values)
 
     print(shap_values)
 
-
-    # force plot with new example
-    # if plot == 1 and example == 1:
-
     
+
+
+
     return HttpResponse("test")
