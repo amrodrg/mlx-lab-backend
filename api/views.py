@@ -1,3 +1,4 @@
+from doctest import Example
 from urllib import response
 from sklearn.datasets import load_diabetes
 from IPython.core.display import display, HTML
@@ -266,7 +267,14 @@ def use_model(request):
         return JsonResponse(predictions_list, safe=False)
     return
 
+
+
+
+#################################################################################################################
 ##################################################### SHAP ######################################################
+
+
+
 
 def load_data_shap(data_link):
     data = pd.read_csv(data_link)
@@ -280,26 +288,45 @@ def split_x_y_shap(data_link, labels_name):
 
 @api_view(['POST'])
 def get_model_explaination(request):
-
     shap_values_list = request.data['shapValues']
+    label_name = request.data['labelName']
+    model_name = request.data['modelName']
+    data_link = request.data['dataLink']
+    background_value = request.data['backgroundValue']
+    plot = request.data['plot']
+    example = request.data['example']
 
-    print("--------------------------------------->")
-    print("shap values :")
-    print(shap_values_list)
-    print("--------------------------------------->")
+    saving_formate = ".h5"
+    saving_name = model_name + saving_formate
+    saving_path = "saved_models/" + saving_name
+    last_modified = os.path.getmtime(saving_path)
+    dt_m = datetime.datetime.fromtimestamp(last_modified)
 
-    print("Decode JSON serialized NumPy array")
+    X, y = split_x_y_shap(data_link, label_name)
+
     decodedArrays = json.loads(shap_values_list)
 
     finalNumpyArray = np.asarray(decodedArrays["array"])
 
     # shap.force_plot(kernel_explainer.expected_value, shap_values, X_test, feature_names = X.columns)
 
+
+    plotType = ""
+    if plot == "1":
+        plotType = "Force Plot"
+    elif plot == "2":
+        plotType = "Summery Plot"
+
+    feature_string = ""
+    for feature in X.columns:
+        feature_string = feature_string + " " + feature
+
     resultDic = {
+        "plot": plotType,
+        "background_value": background_value,
         "modelName": model_name,
-        "labelToPredict": label_name,
         "dataLink": data_link,
-        "featureArray": featureArray,
+        "labelToPredict": label_name,
         "modelFeaturesString": feature_string,
         "lastModified": dt_m
     }
@@ -319,18 +346,6 @@ def get_model_information(request):
     dt_m = datetime.datetime.fromtimestamp(last_modified)
 
     X, y = split_x_y_shap(data_link, label_name)
-
-    print("--------------------------------------->")
-    print("model name: ", model_name)
-    print("--------------------------------------->")
-    print("label to predict: ", label_name)
-    print("--------------------------------------->")
-    print("data link: ", data_link)
-    print("--------------------------------------->")
-    print("model features: ", X.columns)
-    print("--------------------------------------->")
-    print("last modified: ", dt_m)
-    print("--------------------------------------->")
 
     featureArray = []
     for feature in X.columns:
@@ -363,24 +378,6 @@ def explain_model(request):
     shap_plot = request.data['plot']
     data_link = request.data['dataLink']
     label_name = request.data['labelName']
-
-    print("--------------------------------------->")
-    print("model name: ", model_name)
-    print("--------------------------------------->")
-    print("label to predict: ", label_name)
-    print("--------------------------------------->")
-    print("data link: ", data_link)
-    print("--------------------------------------->")
-    print("Background Value: ", background_value)
-    print("--------------------------------------->")
-    print("Example id: ", example)
-    print("--------------------------------------->")
-    print("plot id: ", shap_plot)
-    print("--------------------------------------->")
-    print("boolean feature array: ", fBooleanArray)
-    print("--------------------------------------->")
-    print("example feature array: ", fExampleArray)
-    print("--------------------------------------->")
 
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
@@ -427,9 +424,6 @@ def explain_model(request):
     filled_dataFrame = pd.DataFrame(
         0, index=np.arange(len(data_one_hot)), columns=list(original_data_form.columns))
     filled_dataFrame.update(data_one_hot)
-    print(filled_dataFrame)
-
-    # shap values for the first instance
     shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
 
     class NumpyArrayEncoder(JSONEncoder):
@@ -438,10 +432,7 @@ def explain_model(request):
                 return obj.tolist()
             return JSONEncoder.default(self, obj)
 
-
     numpyData = {"array": shap_values_list}
-    encodedNumpyData = json.dumps(numpyData, cls=NumpyArrayEncoder)  # use dump() to write array into file
-    print("Printing JSON serialized NumPy array")
-    print(encodedNumpyData)
+    encodedNumpyData = json.dumps(numpyData, cls=NumpyArrayEncoder)
 
     return JsonResponse(encodedNumpyData, safe=False)
