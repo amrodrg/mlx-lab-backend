@@ -13,4 +13,5 @@ urlpatterns = [
 
     path("shap/configure", views.explain_model, name="configure"),
     path("shap/model_information", views.get_model_information, name="model_information"),
+    path("shap/explainer_information", view=views.get_model_explaination, name="explainer_information")
 ]

@@ -22,6 +22,7 @@ from tensorflow.keras import models
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
+from json import JSONEncoder
 import numpy as np
 import os
 import datetime
@@ -277,16 +278,33 @@ def split_x_y_shap(data_link, labels_name):
     y = data[labels_name]
     return X, y
 
-shap_values_list = []
-shap_plot = 1
-
 @api_view(['POST'])
 def get_model_explaination(request):
 
+    shap_values_list = request.data['shapValues']
 
+    print("--------------------------------------->")
+    print("shap values :")
+    print(shap_values_list)
+    print("--------------------------------------->")
 
+    print("Decode JSON serialized NumPy array")
+    decodedArrays = json.loads(shap_values_list)
 
-    return HttpResponse("test")
+    finalNumpyArray = np.asarray(decodedArrays["array"])
+
+    # shap.force_plot(kernel_explainer.expected_value, shap_values, X_test, feature_names = X.columns)
+
+    resultDic = {
+        "modelName": model_name,
+        "labelToPredict": label_name,
+        "dataLink": data_link,
+        "featureArray": featureArray,
+        "modelFeaturesString": feature_string,
+        "lastModified": dt_m
+    }
+
+    return JsonResponse(resultDic)
 
 @api_view(['POST'])
 def get_model_information(request):
@@ -333,6 +351,7 @@ def get_model_information(request):
     }
 
     return JsonResponse(infoDic)
+
 
 @api_view(['POST'])
 def explain_model(request):
@@ -413,6 +432,16 @@ def explain_model(request):
     # shap values for the first instance
     shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
 
-    # shap.force_plot(kernel_explainer.expected_value, shap_values, X_test, feature_names = X.columns)
+    class NumpyArrayEncoder(JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return JSONEncoder.default(self, obj)
 
-    return HttpResponse(shap_values_list)
+
+    numpyData = {"array": shap_values_list}
+    encodedNumpyData = json.dumps(numpyData, cls=NumpyArrayEncoder)  # use dump() to write array into file
+    print("Printing JSON serialized NumPy array")
+    print(encodedNumpyData)
+
+    return JsonResponse(encodedNumpyData, safe=False)
