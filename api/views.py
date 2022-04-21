@@ -1,3 +1,4 @@
+from urllib import response
 from sklearn.datasets import load_diabetes
 from IPython.core.display import display, HTML
 import matplotlib.pyplot as plt
@@ -276,6 +277,17 @@ def split_x_y_shap(data_link, labels_name):
     y = data[labels_name]
     return X, y
 
+shap_values_list = []
+shap_plot = 1
+
+@api_view(['POST'])
+def get_model_explaination(request):
+
+
+
+
+    return HttpResponse("test")
+
 @api_view(['POST'])
 def get_model_information(request):
     model_name = request.data['modelName']
@@ -329,7 +341,7 @@ def explain_model(request):
     example = request.data['example']
     fBooleanArray = request.data['fBooleanArray']
     fExampleArray = request.data['fExampleArray']
-    plot = request.data['plot']
+    shap_plot = request.data['plot']
     data_link = request.data['dataLink']
     label_name = request.data['labelName']
 
@@ -344,7 +356,7 @@ def explain_model(request):
     print("--------------------------------------->")
     print("Example id: ", example)
     print("--------------------------------------->")
-    print("plot id: ", plot)
+    print("plot id: ", shap_plot)
     print("--------------------------------------->")
     print("boolean feature array: ", fBooleanArray)
     print("--------------------------------------->")
@@ -364,39 +376,43 @@ def explain_model(request):
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
     # explainer = shap.DeepExplainer(loaded_model, X_train)
 
-    ####################### For New Example
-    cleanExampleDic = {}
-    for key in fExampleArray.keys():
-        itemValue = fExampleArray.get(key)
+    ###################### Feature importance
 
-        if any(char.isdigit() for char in itemValue) :
-            itemValue = int(itemValue)
 
-        cleanExampleDic[key] = itemValue
 
-    # wrap user example in a data frame
-    exampleDataFrame = pd.DataFrame(cleanExampleDic, index=[0])
-    print("", exampleDataFrame)  
 
-    data_one_hot = pd.get_dummies(data=exampleDataFrame)
-    print("", data_one_hot)
 
-    original_data_form = X_train.head()
-    filled_dataFrame = pd.DataFrame(
-        0, index=np.arange(len(data_one_hot)), columns=list(original_data_form.columns))
-
-    filled_dataFrame.update(data_one_hot)
-
-    print("filled data frame: ", filled_dataFrame)
-    print("##########################")
-
-    # shap values for the first instance
-    shap_values = kernel_explainer.shap_values(filled_dataFrame.values)
-
-    print(shap_values)
 
     
 
 
 
-    return HttpResponse("test")
+
+
+
+
+
+    ####################### For New Example
+    cleanExampleDic = {}
+    for key in fExampleArray.keys():
+        itemValue = fExampleArray.get(key)
+        if any(char.isdigit() for char in itemValue) :
+            itemValue = int(itemValue)
+        cleanExampleDic[key] = itemValue
+
+    # wrap user example in a data frame
+    exampleDataFrame = pd.DataFrame(cleanExampleDic, index=[0])
+    data_one_hot = pd.get_dummies(data=exampleDataFrame)
+
+    original_data_form = X_train.head()
+    filled_dataFrame = pd.DataFrame(
+        0, index=np.arange(len(data_one_hot)), columns=list(original_data_form.columns))
+    filled_dataFrame.update(data_one_hot)
+    print(filled_dataFrame)
+
+    # shap values for the first instance
+    shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
+
+    # shap.force_plot(kernel_explainer.expected_value, shap_values, X_test, feature_names = X.columns)
+
+    return HttpResponse(shap_values_list)
