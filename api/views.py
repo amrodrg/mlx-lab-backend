@@ -1,3 +1,4 @@
+from cProfile import label
 from doctest import Example
 from urllib import response
 from sklearn.datasets import load_diabetes
@@ -301,20 +302,26 @@ def get_model_explaination(request):
     saving_path = "saved_models/" + saving_name
     last_modified = os.path.getmtime(saving_path)
     dt_m = datetime.datetime.fromtimestamp(last_modified)
+    loaded_model = tf.keras.models.load_model(saving_path)
 
-    X, y = split_x_y_shap(data_link, label_name)
+    background_value_int = int(background_value)
+    X, y = split_x_y(data_link, label_name)
+    X_train, X_test, y_train, y_test = split_train_test(X, y, background_value_int/100)
 
-    decodedArrays = json.loads(shap_values_list)
+    decodedArray = json.loads(shap_values_list)
+    finalNumpyArray = np.asarray(decodedArray["array"])
 
-    finalNumpyArray = np.asarray(decodedArrays["array"])
-
-    # shap.force_plot(kernel_explainer.expected_value, shap_values, X_test, feature_names = X.columns)
+    kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
+    force_plot = shap.force_plot(kernel_explainer.expected_value, finalNumpyArray[0], matplotlib=False)
+    force_plot_html = f"<head>{shap.getjs()}</head><body>{force_plot.html()}</body>"
+    
+    print(type(force_plot_html))
 
 
     plotType = ""
-    if plot == "1":
+    if plot == "2":
         plotType = "Force Plot"
-    elif plot == "2":
+    elif plot == "3":
         plotType = "Summery Plot"
 
     feature_string = ""
@@ -326,6 +333,7 @@ def get_model_explaination(request):
         "background_value": background_value,
         "modelName": model_name,
         "dataLink": data_link,
+        "forcePlot": force_plot_html,
         "labelToPredict": label_name,
         "modelFeaturesString": feature_string,
         "lastModified": dt_m
@@ -379,6 +387,8 @@ def explain_model(request):
     data_link = request.data['dataLink']
     label_name = request.data['labelName']
 
+    print(shap_plot)
+
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
     saving_path = "saved_models/" + saving_name
@@ -393,7 +403,6 @@ def explain_model(request):
     # explainer = shap.DeepExplainer(loaded_model, X_train)
 
     ###################### Feature importance
-
 
 
 
