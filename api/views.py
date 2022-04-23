@@ -308,32 +308,19 @@ def get_model_explaination(request):
     X, y = split_x_y(data_link, label_name)
     X_train, X_test, y_train, y_test = split_train_test(X, y, background_value_int/100)
 
-    decodedArray = json.loads(shap_values_list)
-    finalNumpyArray = np.asarray(decodedArray["array"])
-
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
-    force_plot = shap.force_plot(kernel_explainer.expected_value, finalNumpyArray[0], matplotlib=False)
-    force_plot_html = f"<head>{shap.getjs()}</head><body>{force_plot.html()}</body>"
-    
-    print(type(force_plot_html))
-
-
-    plotType = ""
-    if plot == "2":
-        plotType = "Force Plot"
-    elif plot == "3":
-        plotType = "Summery Plot"
 
     feature_string = ""
     for feature in X.columns:
         feature_string = feature_string + " " + feature
 
+    print(kernel_explainer.expected_value)
+
     resultDic = {
-        "plot": plotType,
         "background_value": background_value,
         "modelName": model_name,
         "dataLink": data_link,
-        "forcePlot": force_plot_html,
+        "baseValue": int(kernel_explainer.expected_value),
         "labelToPredict": label_name,
         "modelFeaturesString": feature_string,
         "lastModified": dt_m
@@ -400,22 +387,6 @@ def explain_model(request):
     X_train, X_test, y_train, y_test = split_train_test(X, y, background_value_int/100)
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
-    # explainer = shap.DeepExplainer(loaded_model, X_train)
-
-    ###################### Feature importance
-
-
-
-
-
-    
-
-
-
-
-
-
-
 
     ####################### For New Example
     cleanExampleDic = {}
@@ -435,13 +406,10 @@ def explain_model(request):
     filled_dataFrame.update(data_one_hot)
     shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
 
-    class NumpyArrayEncoder(JSONEncoder):
-        def default(self, obj):
-            if isinstance(obj, np.ndarray):
-                return obj.tolist()
-            return JSONEncoder.default(self, obj)
+    subJsonPlotArray = []
+    counter = 0
+    for column in filled_dataFrame.columns:
+        subJsonPlotArray.append({'name': column, 'effect': shap_values_list[0][0][counter], 'value': int(filled_dataFrame.iloc[0][column])})
+        counter = counter + 1
 
-    numpyData = {"array": shap_values_list}
-    encodedNumpyData = json.dumps(numpyData, cls=NumpyArrayEncoder)
-
-    return JsonResponse(encodedNumpyData, safe=False)
+    return JsonResponse(subJsonPlotArray, safe=False)
