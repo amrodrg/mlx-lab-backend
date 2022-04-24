@@ -368,13 +368,10 @@ def explain_model(request):
     model_name = request.data['modelName']
     background_value = request.data['backgroundValue']
     example = request.data['example']
-    fBooleanArray = request.data['fBooleanArray']
+    prediction_link = request.data['predictionDataLink']
     fExampleArray = request.data['fExampleArray']
-    shap_plot = request.data['plot']
     data_link = request.data['dataLink']
     label_name = request.data['labelName']
-
-    print(shap_plot)
 
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
@@ -385,31 +382,57 @@ def explain_model(request):
 
     X, y = split_x_y(data_link, label_name)
     X_train, X_test, y_train, y_test = split_train_test(X, y, background_value_int/100)
+    original_data_form = X_train.head()
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
 
-    ####################### For New Example
-    cleanExampleDic = {}
-    for key in fExampleArray.keys():
-        itemValue = fExampleArray.get(key)
-        if any(char.isdigit() for char in itemValue) :
-            itemValue = int(itemValue)
-        cleanExampleDic[key] = itemValue
+    if example == '1':
+        cleanExampleDic = {}
+        for key in fExampleArray.keys():
+            itemValue = fExampleArray.get(key)
+            if any(char.isdigit() for char in itemValue) :
+                itemValue = int(itemValue)
+            cleanExampleDic[key] = itemValue
 
-    # wrap user example in a data frame
-    exampleDataFrame = pd.DataFrame(cleanExampleDic, index=[0])
-    data_one_hot = pd.get_dummies(data=exampleDataFrame)
+        # wrap user example in a data frame
+        exampleDataFrame = pd.DataFrame(cleanExampleDic, index=[0])
+        data_one_hot = pd.get_dummies(data=exampleDataFrame)
 
-    original_data_form = X_train.head()
-    filled_dataFrame = pd.DataFrame(
-        0, index=np.arange(len(data_one_hot)), columns=list(original_data_form.columns))
-    filled_dataFrame.update(data_one_hot)
-    shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
+        filled_dataFrame = pd.DataFrame(
+            0, index=np.arange(len(data_one_hot)), columns=list(original_data_form.columns))
+        filled_dataFrame.update(data_one_hot)
+        shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
 
-    subJsonPlotArray = []
-    counter = 0
-    for column in filled_dataFrame.columns:
-        subJsonPlotArray.append({'name': column, 'effect': shap_values_list[0][0][counter], 'value': int(filled_dataFrame.iloc[0][column])})
-        counter = counter + 1
+        subJsonPlotArray = []
+        counter = 0
+        for column in filled_dataFrame.columns:
+            subJsonPlotArray.append({'name': column, 'effect': shap_values_list[0][0][counter], 'value': int(filled_dataFrame.iloc[0][column])})
+            counter = counter + 1
 
-    return JsonResponse(subJsonPlotArray, safe=False)
+        return JsonResponse(subJsonPlotArray, safe=False)
+
+    elif example == '2':
+        loaded_data = load_google_drive_data(prediction_link)
+
+        filled_dataFrame = pd.DataFrame(
+            0, index=np.arange(len(loaded_data)), columns=list(original_data_form.columns))
+        filled_dataFrame.update(loaded_data)
+
+        shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
+        numEntries = len(shap_values_list[0])
+
+        jsonPlotArray = []
+        for pred in range(0, numEntries):
+            subJsonPlotArray = []
+            counter = 0
+            for column in filled_dataFrame.columns:
+                entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(filled_dataFrame.iloc[pred][column])}
+                subJsonPlotArray.append(entry)
+                counter = counter + 1
+            jsonPlotArray.append(subJsonPlotArray)
+
+        print("result: ", jsonPlotArray)
+
+        return JsonResponse(jsonPlotArray, safe=False)
+
+    return
