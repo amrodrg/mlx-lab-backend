@@ -276,7 +276,6 @@ def use_model(request):
 
 
 
-
 def load_data_shap(data_link):
     data = pd.read_csv(data_link)
     return data
@@ -288,14 +287,50 @@ def split_x_y_shap(data_link, labels_name):
     return X, y
 
 @api_view(['POST'])
-def get_model_explaination(request):
-    shap_values_list = request.data['shapValues']
+def get_prediction_shap_values(request):
+    prediction_link = request.data['predictionDataLink']
+    model_name = request.data['modelName']
+    data_link = request.data['dataLink']
+    label_name = request.data['labelName']
+
+    saving_formate = ".h5"
+    saving_name = model_name + saving_formate
+    saving_path = "saved_models/" + saving_name
+    loaded_model = tf.keras.models.load_model(saving_path)
+
+    X, y = split_x_y(data_link, label_name)
+    X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
+    original_data_form = X_train.head()
+
+    kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
+
+    loaded_data = load_google_drive_data(prediction_link)
+
+    filled_dataFrame = pd.DataFrame(
+        0, index=np.arange(len(loaded_data)), columns=list(original_data_form.columns))
+    filled_dataFrame.update(loaded_data)
+
+    shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
+    numEntries = len(shap_values_list[0])
+
+    jsonPlotArray = []
+    for pred in range(0, numEntries):
+        subJsonPlotArray = []
+        counter = 0
+        for column in filled_dataFrame.columns:
+            entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(filled_dataFrame.iloc[pred][column])}
+            subJsonPlotArray.append(entry)
+            counter = counter + 1
+        jsonPlotArray.append(subJsonPlotArray)
+
+    return JsonResponse(jsonPlotArray, safe=False)
+
+@api_view(['POST'])
+def get_explainer_information(request):
     label_name = request.data['labelName']
     model_name = request.data['modelName']
     data_link = request.data['dataLink']
     background_value = request.data['backgroundValue']
-    plot = request.data['plot']
-    example = request.data['example']
 
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
@@ -313,8 +348,6 @@ def get_model_explaination(request):
     feature_string = ""
     for feature in X.columns:
         feature_string = feature_string + " " + feature
-
-    print(kernel_explainer.expected_value)
 
     resultDic = {
         "background_value": background_value,
