@@ -464,8 +464,6 @@ def explain_model(request):
                 counter = counter + 1
             jsonPlotArray.append(subJsonPlotArray)
 
-        print("result: ", jsonPlotArray)
-
         return JsonResponse(jsonPlotArray, safe=False)
 
     return
