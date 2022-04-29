@@ -3,7 +3,6 @@ from doctest import Example
 from urllib import response
 from sklearn.datasets import load_diabetes
 from IPython.core.display import display, HTML
-import matplotlib.pyplot as plt
 import shap
 from sklearn.pipeline import make_pipeline
 from sklearn.neural_network import MLPRegressor
@@ -28,6 +27,7 @@ from json import JSONEncoder
 import numpy as np
 import os
 import datetime
+import hashlib
 
 
 # Variables
@@ -115,9 +115,12 @@ def build_model(request):
         learning_rate = request.data['learningRate']
         metrics = 'accuracy'
 
+        host_ip_hash_string = hashlib.sha224(
+            request.get_host().encode()).hexdigest()
         saving_formate = ".h5"
         saving_name = model_name + saving_formate
-        saving_path = "saved_models/" + saving_name
+        saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
+        saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
         X, y = split_x_y(data_link, labels_name)
         X_train, X_test, y_train, y_test = split_train_test(
@@ -155,6 +158,12 @@ def build_model(request):
 
         model.save(saving_path)
 
+        original_data_shape = X_train.head()
+        zeros_dataFrame = pd.DataFrame(
+            0, index=np.arange(1), columns=list(original_data_shape.columns))
+
+        zeros_dataFrame.to_csv(saving_folder + "data_shabe.csv", index=False)
+
         result = model.to_json()
         result = json.loads(result)
         return JsonResponse(result)
@@ -190,9 +199,11 @@ def evaluate_model(request):
         labels_name = request.data['labelsName']
         testing_percentage = request.data['testingPercentage']/100
 
+        host_ip_hash_string = hashlib.sha224(
+            request.get_host().encode()).hexdigest()
         saving_formate = ".h5"
         saving_name = model_name + saving_formate
-        saving_path = "saved_models/" + saving_name
+        saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
 
         loaded_model = tf.keras.models.load_model(saving_path)
 
@@ -215,7 +226,7 @@ def evaluate_model(request):
                 mean_value)),
         }
 
-        print("==================> ", evaluation)
+        print("=========Evaluation=========> ", evaluation)
         return JsonResponse(evaluation_dict)
     return
 
@@ -223,46 +234,34 @@ def evaluate_model(request):
 @api_view(['GET', 'POST'])
 def use_model(request):
     if request.method == "POST":
-        print("========== Post Request ==========>")
         model_name = request.data['modelName']
         prediction_data_link = request.data['predictionDataLink']
-        original_data_link = request.data['originalDataLink']
-        labels_name = request.data['labelsName']
-        testing_percentage = request.data['testingPercentage']/100
 
+        host_ip_hash_string = hashlib.sha224(
+            request.get_host().encode()).hexdigest()
         saving_formate = ".h5"
         saving_name = model_name + saving_formate
-        saving_path = "saved_models/" + saving_name
+        saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
+        saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
-        print(
-            "========== Loading Model ==================================================>")
+        print("========== Loading Model ==============================================>")
         loaded_model = tf.keras.models.load_model(saving_path)
-        print(
-            "========== Model Loaded ===================================================>")
+        print("========== Model Loaded ===============================================>")
 
-        X, y = split_x_y(original_data_link, labels_name)
-        X_train, X_test, y_train, y_test = split_train_test(
-            X, y, testing_percentage)
-        original_data_form = X_train.head()
-        print(
-            "========== Training Data imported ===================================================>")
+        original_data_shape = pd.read_csv(saving_folder + "data_shabe.csv")
+        print("========== Training Data Shape Loaded =================================>")
 
         loaded_data = load_google_drive_data(prediction_data_link)
-        print(
-            "========== Prediction Data Loaded ========================================>", loaded_data)
+        print("========== Prediction Data Loaded =====================================>")
 
         filled_dataFrame = pd.DataFrame(
-            0, index=np.arange(len(loaded_data)), columns=list(original_data_form.columns))
+            0, index=np.arange(len(loaded_data)), columns=list(original_data_shape.columns))
 
         filled_dataFrame.update(loaded_data)
 
         predictions = loaded_model.predict(filled_dataFrame)
-        print(filled_dataFrame)
-        print(
-            "========== Predictions ========================================>", predictions)
 
         predictions = predictions.tolist()
-
         predictions_list = []
         for p in range(len(predictions)):
             predictions_list.append(
