@@ -55,7 +55,7 @@ def load_google_drive_data(data_link):
 
 
 def split_x_y(data_link, labels_name):
-    data = load_data(data_link)
+    data = load_google_drive_data(data_link=data_link)  # load_data(data_link)
     X = data.drop(labels_name, axis=1)
     y = data[labels_name]
     return X, y
@@ -181,6 +181,7 @@ def build_model(request):
         # model.save(tensorflow_models/model_name+userID)
         return JsonResponse(result)
 
+
 @api_view(['GET', 'POST'])
 def evaluate_model(request):
     if request.method == "POST":
@@ -218,14 +219,16 @@ def evaluate_model(request):
         return JsonResponse(evaluation_dict)
     return
 
+
 @api_view(['GET', 'POST'])
 def use_model(request):
     if request.method == "POST":
         print("========== Post Request ==========>")
         model_name = request.data['modelName']
         prediction_data_link = request.data['predictionDataLink']
-        original_data_link = "https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/insurance.csv"
-        labels_name = "charges"
+        original_data_link = request.data['originalDataLink']
+        labels_name = request.data['labelsName']
+        testing_percentage = request.data['testingPercentage']/100
 
         saving_formate = ".h5"
         saving_name = model_name + saving_formate
@@ -239,7 +242,7 @@ def use_model(request):
 
         X, y = split_x_y(original_data_link, labels_name)
         X_train, X_test, y_train, y_test = split_train_test(
-            X, y, 0.1)
+            X, y, testing_percentage)
         original_data_form = X_train.head()
         print(
             "========== Training Data imported ===================================================>")
@@ -269,22 +272,21 @@ def use_model(request):
     return
 
 
-
-
 #################################################################################################################
 ##################################################### SHAP ######################################################
-
 
 
 def load_data_shap(data_link):
     data = pd.read_csv(data_link)
     return data
 
+
 def split_x_y_shap(data_link, labels_name):
     data = load_data_shap(data_link)
     X = data.drop(labels_name, axis=1)
     y = data[labels_name]
     return X, y
+
 
 @api_view(['POST'])
 def get_prediction_shap_values(request):
@@ -318,12 +320,14 @@ def get_prediction_shap_values(request):
         subJsonPlotArray = []
         counter = 0
         for column in filled_dataFrame.columns:
-            entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(filled_dataFrame.iloc[pred][column])}
+            entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(
+                filled_dataFrame.iloc[pred][column])}
             subJsonPlotArray.append(entry)
             counter = counter + 1
         jsonPlotArray.append(subJsonPlotArray)
 
     return JsonResponse(jsonPlotArray, safe=False)
+
 
 @api_view(['POST'])
 def get_explainer_information(request):
@@ -341,7 +345,8 @@ def get_explainer_information(request):
 
     background_value_int = int(background_value)
     X, y = split_x_y(data_link, label_name)
-    X_train, X_test, y_train, y_test = split_train_test(X, y, background_value_int/100)
+    X_train, X_test, y_train, y_test = split_train_test(
+        X, y, background_value_int/100)
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
 
@@ -360,6 +365,7 @@ def get_explainer_information(request):
     }
 
     return JsonResponse(resultDic)
+
 
 @api_view(['POST'])
 def get_model_information(request):
@@ -414,7 +420,8 @@ def explain_model(request):
     background_value_int = int(background_value)
 
     X, y = split_x_y(data_link, label_name)
-    X_train, X_test, y_train, y_test = split_train_test(X, y, background_value_int/100)
+    X_train, X_test, y_train, y_test = split_train_test(
+        X, y, background_value_int/100)
     original_data_form = X_train.head()
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
@@ -423,7 +430,7 @@ def explain_model(request):
         cleanExampleDic = {}
         for key in fExampleArray.keys():
             itemValue = fExampleArray.get(key)
-            if any(char.isdigit() for char in itemValue) :
+            if any(char.isdigit() for char in itemValue):
                 itemValue = int(itemValue)
             cleanExampleDic[key] = itemValue
 
@@ -434,12 +441,14 @@ def explain_model(request):
         filled_dataFrame = pd.DataFrame(
             0, index=np.arange(len(data_one_hot)), columns=list(original_data_form.columns))
         filled_dataFrame.update(data_one_hot)
-        shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
+        shap_values_list = kernel_explainer.shap_values(
+            filled_dataFrame.values)
 
         subJsonPlotArray = []
         counter = 0
         for column in filled_dataFrame.columns:
-            subJsonPlotArray.append({'name': column, 'effect': shap_values_list[0][0][counter], 'value': int(filled_dataFrame.iloc[0][column])})
+            subJsonPlotArray.append({'name': column, 'effect': shap_values_list[0][0][counter], 'value': int(
+                filled_dataFrame.iloc[0][column])})
             counter = counter + 1
 
         return JsonResponse(subJsonPlotArray, safe=False)
@@ -451,7 +460,8 @@ def explain_model(request):
             0, index=np.arange(len(loaded_data)), columns=list(original_data_form.columns))
         filled_dataFrame.update(loaded_data)
 
-        shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
+        shap_values_list = kernel_explainer.shap_values(
+            filled_dataFrame.values)
         numEntries = len(shap_values_list[0])
 
         jsonPlotArray = []
@@ -459,7 +469,8 @@ def explain_model(request):
             subJsonPlotArray = []
             counter = 0
             for column in filled_dataFrame.columns:
-                entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(filled_dataFrame.iloc[pred][column])}
+                entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(
+                    filled_dataFrame.iloc[pred][column])}
                 subJsonPlotArray.append(entry)
                 counter = counter + 1
             jsonPlotArray.append(subJsonPlotArray)
