@@ -336,13 +336,33 @@ def get_prediction_shap_values(request):
     data_link = request.data['dataLink']
     label_name = request.data['labelName']
 
+    print("######################################################");
+    print("prediction_link: ", prediction_link)
+    print("######################################################");
+    print("model_name: ", model_name)
+    print("######################################################");
+    print("data_link: ", data_link)
+    print("######################################################");
+    print("label_name: ", label_name)
+    print("######################################################");
+
+    host_ip_hash_string = hashlib.sha224(
+        request.get_host().encode()).hexdigest()
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
-    saving_path = "saved_models/" + saving_name
+    saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
     loaded_model = tf.keras.models.load_model(saving_path)
 
-    X, y = split_x_y(data_link, label_name)
-    X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
+    try:
+        X, y = split_x_y(data_link, label_name)
+        X_train, X_test, y_train, y_test = split_train_test(
+            X, y, 0.2)
+    except:
+        content = {'error_message': 'invalid data link!'}
+        return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    saving_folder = "saved_models/" + host_ip_hash_string + "/"
+    original_data_shape = pd.read_csv(saving_folder + "data_shabe.csv") 
     original_data_form = X_train.head()
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
@@ -350,7 +370,7 @@ def get_prediction_shap_values(request):
     loaded_data = load_google_drive_data(prediction_link)
 
     filled_dataFrame = pd.DataFrame(
-        0, index=np.arange(len(loaded_data)), columns=list(original_data_form.columns))
+        0, index=np.arange(len(loaded_data)), columns=list(original_data_shape.columns))
     filled_dataFrame.update(loaded_data)
 
     shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
@@ -367,6 +387,8 @@ def get_prediction_shap_values(request):
             counter = counter + 1
         jsonPlotArray.append(subJsonPlotArray)
 
+    print("RESULT: ", jsonPlotArray)
+
     return JsonResponse(jsonPlotArray, safe=False)
 
 
@@ -377,17 +399,24 @@ def get_explainer_information(request):
     data_link = request.data['dataLink']
     background_value = request.data['backgroundValue']
 
+    host_ip_hash_string = hashlib.sha224(
+        request.get_host().encode()).hexdigest()
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
-    saving_path = "saved_models/" + saving_name
+    saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
     last_modified = os.path.getmtime(saving_path)
     dt_m = datetime.datetime.fromtimestamp(last_modified)
     loaded_model = tf.keras.models.load_model(saving_path)
 
     background_value_int = int(background_value)
-    X, y = split_x_y(data_link, label_name)
-    X_train, X_test, y_train, y_test = split_train_test(
-        X, y, background_value_int/100)
+
+    try:
+        X, y = split_x_y(data_link, label_name)
+        X_train, X_test, y_train, y_test = split_train_test(
+            X, y, background_value_int/100)
+    except:
+        content = {'error_message': 'invalid data link!'}
+        return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
 
@@ -414,9 +443,11 @@ def get_model_information(request):
     data_link = request.data['dataLink']
     label_name = request.data['labelName']
 
+    host_ip_hash_string = hashlib.sha224(
+    request.get_host().encode()).hexdigest()
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
-    saving_path = "saved_models/" + saving_name
+    saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
     last_modified = os.path.getmtime(saving_path)
     dt_m = datetime.datetime.fromtimestamp(last_modified)
 
@@ -453,17 +484,24 @@ def explain_model(request):
     data_link = request.data['dataLink']
     label_name = request.data['labelName']
 
+    host_ip_hash_string = hashlib.sha224(
+    request.get_host().encode()).hexdigest()
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
-    saving_path = "saved_models/" + saving_name
+    saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
     loaded_model = tf.keras.models.load_model(saving_path)
+    saving_folder = "saved_models/" + host_ip_hash_string + "/"
+    original_data_shape = pd.read_csv(saving_folder + "data_shabe.csv") 
 
     background_value_int = int(background_value)
 
-    X, y = split_x_y(data_link, label_name)
-    X_train, X_test, y_train, y_test = split_train_test(
-        X, y, background_value_int/100)
-    original_data_form = X_train.head()
+    try:
+        X, y = split_x_y(data_link, label_name)
+        X_train, X_test, y_train, y_test = split_train_test(
+            X, y, background_value_int/100)
+    except:
+        content = {'error_message': 'invalid data link!'}
+        return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
 
@@ -480,7 +518,7 @@ def explain_model(request):
         data_one_hot = pd.get_dummies(data=exampleDataFrame)
 
         filled_dataFrame = pd.DataFrame(
-            0, index=np.arange(len(data_one_hot)), columns=list(original_data_form.columns))
+            0, index=np.arange(len(data_one_hot)), columns=list(original_data_shape.columns))
         filled_dataFrame.update(data_one_hot)
         shap_values_list = kernel_explainer.shap_values(
             filled_dataFrame.values)
@@ -498,7 +536,7 @@ def explain_model(request):
         loaded_data = load_google_drive_data(prediction_link)
 
         filled_dataFrame = pd.DataFrame(
-            0, index=np.arange(len(loaded_data)), columns=list(original_data_form.columns))
+            0, index=np.arange(len(loaded_data)), columns=list(original_data_shape.columns))
         filled_dataFrame.update(loaded_data)
 
         shap_values_list = kernel_explainer.shap_values(
