@@ -207,7 +207,8 @@ def build_model(request):
         zeros_dataFrame = pd.DataFrame(
             0, index=np.arange(1), columns=list(original_data_shape.columns))
 
-        zeros_dataFrame.to_csv(saving_folder + "data_shabe.csv", index=False)
+        zeros_dataFrame.to_csv(
+            saving_folder + model_name + "_data_shabe.csv", index=False)
 
         result = model.to_json()
         result = json.loads(result)
@@ -290,7 +291,8 @@ def use_model(request):
         loaded_model = tf.keras.models.load_model(saving_path)
         print("========== Model Loaded ===============================================>")
 
-        original_data_shape = pd.read_csv(saving_folder + "data_shabe.csv")
+        original_data_shape = pd.read_csv(
+            saving_folder + model_name + "_data_shabe.csv")
         print("========== Training Data Shape Loaded =================================>")
 
         loaded_data = load_google_drive_data(prediction_data_link)
