@@ -108,10 +108,10 @@ def check_data_link(request):
                 data_link.split('/')[-2]
             data = pd.read_csv(path)
         except:
-            content = {'error_message': 'Data Link is Invalid!'}
+            content = {'message': 'Data Link is Invalid!'}
             return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        content = {'error_message': 'Data Link is Valid!'}
+        content = {'message': 'Data Link is Valid!'}
         return Response(data=content, status=status.HTTP_200_OK)
 
 
@@ -126,10 +126,10 @@ def check_labels_column_name(request):
             data = pd.read_csv(path)
             X = data.drop(labels_name, axis=1)
         except:
-            content = {'error_message': 'Labels Column Name is Incorrect!'}
+            content = {'message': 'Labels Column Name is Incorrect!'}
             return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        content = {'error_message': 'Labels Column Name is Correct!'}
+        content = {'message': 'Labels Column Name is Correct!'}
         return Response(data=content, status=status.HTTP_200_OK)
 
 
