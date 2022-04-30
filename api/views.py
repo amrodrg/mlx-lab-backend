@@ -3,7 +3,6 @@ from doctest import Example
 from urllib import response
 from sklearn.datasets import load_diabetes
 from IPython.core.display import display, HTML
-import matplotlib.pyplot as plt
 import shap
 from sklearn.pipeline import make_pipeline
 from sklearn.neural_network import MLPRegressor
@@ -14,6 +13,7 @@ from statistics import mode
 from unittest import result
 from django.shortcuts import render
 from django.http import JsonResponse
+from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
@@ -28,6 +28,7 @@ from json import JSONEncoder
 import numpy as np
 import os
 import datetime
+import hashlib
 
 
 # Variables
@@ -55,7 +56,7 @@ def load_google_drive_data(data_link):
 
 
 def split_x_y(data_link, labels_name):
-    data = load_data(data_link)
+    data = load_google_drive_data(data_link=data_link)  # load_data(data_link)
     X = data.drop(labels_name, axis=1)
     y = data[labels_name]
     return X, y
@@ -99,8 +100,41 @@ def compile_model(model, loss_function, optimizer, metrics, learning_rate):
 
 
 @api_view(['GET', 'POST'])
-def build_model(request):
+def check_data_link(request):
+    if request.method == "POST":
+        data_link = request.data['dataLink']
+        try:
+            path = 'https://drive.google.com/uc?export=download&id=' + \
+                data_link.split('/')[-2]
+            data = pd.read_csv(path)
+        except:
+            content = {'message': 'Data Link is Invalid!'}
+            return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
+        content = {'message': 'Data Link is Valid!'}
+        return Response(data=content, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST'])
+def check_labels_column_name(request):
+    if request.method == "POST":
+        data_link = request.data['dataLink']
+        labels_name = request.data['labelsName']
+        try:
+            path = 'https://drive.google.com/uc?export=download&id=' + \
+                data_link.split('/')[-2]
+            data = pd.read_csv(path)
+            X = data.drop(labels_name, axis=1)
+        except:
+            content = {'message': 'Labels Column Name is Incorrect!'}
+            return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        content = {'message': 'Labels Column Name is Correct!'}
+        return Response(data=content, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST'])
+def build_model(request):
     if request.method == "POST":
         neuronsNumList = request.data['neuronsList']
         activation_functions_list = request.data['activationList']
@@ -115,13 +149,20 @@ def build_model(request):
         learning_rate = request.data['learningRate']
         metrics = 'accuracy'
 
+        host_ip_hash_string = hashlib.sha224(
+            request.get_host().encode()).hexdigest()
         saving_formate = ".h5"
         saving_name = model_name + saving_formate
-        saving_path = "saved_models/" + saving_name
+        saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
+        saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
-        X, y = split_x_y(data_link, labels_name)
-        X_train, X_test, y_train, y_test = split_train_test(
-            X, y, testing_percentage)
+        try:
+            X, y = split_x_y(data_link, labels_name)
+            X_train, X_test, y_train, y_test = split_train_test(
+                X, y, testing_percentage)
+        except:
+            content = {'error_message': 'invalid data link!'}
+            return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         print("--------------------------------------->")
         print('Neurons Numbers: ', neuronsNumList)
@@ -145,15 +186,28 @@ def build_model(request):
         model = empty_model()
 
         for l in range(layersNum):
-            model.add(layers.Dense(neuronsNumList[l]))
+            model.add(layers.Dense(
+                neuronsNumList[l], activation_functions_list[l]))
         model.add(layers.Dense(1))
 
+        print("========== Compiling =====================================>")
         model = compile_model(model=model, loss_function=loss_function, optimizer=optimizer,
                               metrics=metrics, learning_rate=learning_rate)
 
-        model.fit(X_train, y_train, epochs=epochs_number, verbose=0)
+        print("========== Fitting Data ==================================>")
+        try:
+            model.fit(X_train, y_train, epochs=epochs_number, verbose=0)
+        except:
+            content = {'error_message': 'data fitting failed!'}
+            return Response(data=content, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         model.save(saving_path)
+
+        original_data_shape = X_train.head()
+        zeros_dataFrame = pd.DataFrame(
+            0, index=np.arange(1), columns=list(original_data_shape.columns))
+
+        zeros_dataFrame.to_csv(saving_folder + "data_shabe.csv", index=False)
 
         result = model.to_json()
         result = json.loads(result)
@@ -162,9 +216,6 @@ def build_model(request):
     else:
         X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
         X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
-        print("--------------------------------------->")
-        print(X_train.shape)
-        print("--------------------------------------->")
         model = empty_model()
         model.add(layers.Dense(28))
         model.add(layers.Dense(100))
@@ -181,6 +232,7 @@ def build_model(request):
         # model.save(tensorflow_models/model_name+userID)
         return JsonResponse(result)
 
+
 @api_view(['GET', 'POST'])
 def evaluate_model(request):
     if request.method == "POST":
@@ -189,9 +241,11 @@ def evaluate_model(request):
         labels_name = request.data['labelsName']
         testing_percentage = request.data['testingPercentage']/100
 
+        host_ip_hash_string = hashlib.sha224(
+            request.get_host().encode()).hexdigest()
         saving_formate = ".h5"
         saving_name = model_name + saving_formate
-        saving_path = "saved_models/" + saving_name
+        saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
 
         loaded_model = tf.keras.models.load_model(saving_path)
 
@@ -214,52 +268,42 @@ def evaluate_model(request):
                 mean_value)),
         }
 
-        print("==================> ", evaluation)
+        print("=========Evaluation=========> ", evaluation)
         return JsonResponse(evaluation_dict)
     return
+
 
 @api_view(['GET', 'POST'])
 def use_model(request):
     if request.method == "POST":
-        print("========== Post Request ==========>")
         model_name = request.data['modelName']
         prediction_data_link = request.data['predictionDataLink']
-        original_data_link = "https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/insurance.csv"
-        labels_name = "charges"
 
+        host_ip_hash_string = hashlib.sha224(
+            request.get_host().encode()).hexdigest()
         saving_formate = ".h5"
         saving_name = model_name + saving_formate
-        saving_path = "saved_models/" + saving_name
+        saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
+        saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
-        print(
-            "========== Loading Model ==================================================>")
+        print("========== Loading Model ==============================================>")
         loaded_model = tf.keras.models.load_model(saving_path)
-        print(
-            "========== Model Loaded ===================================================>")
+        print("========== Model Loaded ===============================================>")
 
-        X, y = split_x_y(original_data_link, labels_name)
-        X_train, X_test, y_train, y_test = split_train_test(
-            X, y, 0.1)
-        original_data_form = X_train.head()
-        print(
-            "========== Training Data imported ===================================================>")
+        original_data_shape = pd.read_csv(saving_folder + "data_shabe.csv")
+        print("========== Training Data Shape Loaded =================================>")
 
         loaded_data = load_google_drive_data(prediction_data_link)
-        print(
-            "========== Prediction Data Loaded ========================================>", loaded_data)
+        print("========== Prediction Data Loaded =====================================>")
 
         filled_dataFrame = pd.DataFrame(
-            0, index=np.arange(len(loaded_data)), columns=list(original_data_form.columns))
+            0, index=np.arange(len(loaded_data)), columns=list(original_data_shape.columns))
 
         filled_dataFrame.update(loaded_data)
 
         predictions = loaded_model.predict(filled_dataFrame)
-        print(filled_dataFrame)
-        print(
-            "========== Predictions ========================================>", predictions)
 
         predictions = predictions.tolist()
-
         predictions_list = []
         for p in range(len(predictions)):
             predictions_list.append(
@@ -269,22 +313,21 @@ def use_model(request):
     return
 
 
-
-
 #################################################################################################################
 ##################################################### SHAP ######################################################
-
 
 
 def load_data_shap(data_link):
     data = pd.read_csv(data_link)
     return data
 
+
 def split_x_y_shap(data_link, labels_name):
     data = load_data_shap(data_link)
     X = data.drop(labels_name, axis=1)
     y = data[labels_name]
     return X, y
+
 
 @api_view(['POST'])
 def get_prediction_shap_values(request):
@@ -318,12 +361,14 @@ def get_prediction_shap_values(request):
         subJsonPlotArray = []
         counter = 0
         for column in filled_dataFrame.columns:
-            entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(filled_dataFrame.iloc[pred][column])}
+            entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(
+                filled_dataFrame.iloc[pred][column])}
             subJsonPlotArray.append(entry)
             counter = counter + 1
         jsonPlotArray.append(subJsonPlotArray)
 
     return JsonResponse(jsonPlotArray, safe=False)
+
 
 @api_view(['POST'])
 def get_explainer_information(request):
@@ -341,7 +386,8 @@ def get_explainer_information(request):
 
     background_value_int = int(background_value)
     X, y = split_x_y(data_link, label_name)
-    X_train, X_test, y_train, y_test = split_train_test(X, y, background_value_int/100)
+    X_train, X_test, y_train, y_test = split_train_test(
+        X, y, background_value_int/100)
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
 
@@ -360,6 +406,7 @@ def get_explainer_information(request):
     }
 
     return JsonResponse(resultDic)
+
 
 @api_view(['POST'])
 def get_model_information(request):
@@ -414,7 +461,8 @@ def explain_model(request):
     background_value_int = int(background_value)
 
     X, y = split_x_y(data_link, label_name)
-    X_train, X_test, y_train, y_test = split_train_test(X, y, background_value_int/100)
+    X_train, X_test, y_train, y_test = split_train_test(
+        X, y, background_value_int/100)
     original_data_form = X_train.head()
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
@@ -423,7 +471,7 @@ def explain_model(request):
         cleanExampleDic = {}
         for key in fExampleArray.keys():
             itemValue = fExampleArray.get(key)
-            if any(char.isdigit() for char in itemValue) :
+            if any(char.isdigit() for char in itemValue):
                 itemValue = int(itemValue)
             cleanExampleDic[key] = itemValue
 
@@ -434,12 +482,14 @@ def explain_model(request):
         filled_dataFrame = pd.DataFrame(
             0, index=np.arange(len(data_one_hot)), columns=list(original_data_form.columns))
         filled_dataFrame.update(data_one_hot)
-        shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
+        shap_values_list = kernel_explainer.shap_values(
+            filled_dataFrame.values)
 
         subJsonPlotArray = []
         counter = 0
         for column in filled_dataFrame.columns:
-            subJsonPlotArray.append({'name': column, 'effect': shap_values_list[0][0][counter], 'value': int(filled_dataFrame.iloc[0][column])})
+            subJsonPlotArray.append({'name': column, 'effect': shap_values_list[0][0][counter], 'value': int(
+                filled_dataFrame.iloc[0][column])})
             counter = counter + 1
 
         return JsonResponse(subJsonPlotArray, safe=False)
@@ -451,7 +501,8 @@ def explain_model(request):
             0, index=np.arange(len(loaded_data)), columns=list(original_data_form.columns))
         filled_dataFrame.update(loaded_data)
 
-        shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
+        shap_values_list = kernel_explainer.shap_values(
+            filled_dataFrame.values)
         numEntries = len(shap_values_list[0])
 
         jsonPlotArray = []
@@ -459,7 +510,8 @@ def explain_model(request):
             subJsonPlotArray = []
             counter = 0
             for column in filled_dataFrame.columns:
-                entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(filled_dataFrame.iloc[pred][column])}
+                entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(
+                    filled_dataFrame.iloc[pred][column])}
                 subJsonPlotArray.append(entry)
                 counter = counter + 1
             jsonPlotArray.append(subJsonPlotArray)
