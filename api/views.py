@@ -13,6 +13,7 @@ from statistics import mode
 from unittest import result
 from django.shortcuts import render
 from django.http import JsonResponse
+from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
@@ -99,8 +100,41 @@ def compile_model(model, loss_function, optimizer, metrics, learning_rate):
 
 
 @api_view(['GET', 'POST'])
-def build_model(request):
+def check_data_link(request):
+    if request.method == "POST":
+        data_link = request.data['dataLink']
+        try:
+            path = 'https://drive.google.com/uc?export=download&id=' + \
+                data_link.split('/')[-2]
+            data = pd.read_csv(path)
+        except:
+            content = {'error_message': 'Data Link is Invalid!'}
+            return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
+        content = {'error_message': 'Data Link is Valid!'}
+        return Response(data=content, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST'])
+def check_labels_column_name(request):
+    if request.method == "POST":
+        data_link = request.data['dataLink']
+        labels_name = request.data['labelsName']
+        try:
+            path = 'https://drive.google.com/uc?export=download&id=' + \
+                data_link.split('/')[-2]
+            data = pd.read_csv(path)
+            X = data.drop(labels_name, axis=1)
+        except:
+            content = {'error_message': 'Labels Column Name is Incorrect!'}
+            return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        content = {'error_message': 'Labels Column Name is Correct!'}
+        return Response(data=content, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST'])
+def build_model(request):
     if request.method == "POST":
         neuronsNumList = request.data['neuronsList']
         activation_functions_list = request.data['activationList']
@@ -122,9 +156,13 @@ def build_model(request):
         saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
         saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
-        X, y = split_x_y(data_link, labels_name)
-        X_train, X_test, y_train, y_test = split_train_test(
-            X, y, testing_percentage)
+        try:
+            X, y = split_x_y(data_link, labels_name)
+            X_train, X_test, y_train, y_test = split_train_test(
+                X, y, testing_percentage)
+        except:
+            content = {'error_message': 'invalid data link!'}
+            return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         print("--------------------------------------->")
         print('Neurons Numbers: ', neuronsNumList)
@@ -148,13 +186,20 @@ def build_model(request):
         model = empty_model()
 
         for l in range(layersNum):
-            model.add(layers.Dense(neuronsNumList[l]))
+            model.add(layers.Dense(
+                neuronsNumList[l], activation_functions_list[l]))
         model.add(layers.Dense(1))
 
+        print("========== Compiling =====================================>")
         model = compile_model(model=model, loss_function=loss_function, optimizer=optimizer,
                               metrics=metrics, learning_rate=learning_rate)
 
-        model.fit(X_train, y_train, epochs=epochs_number, verbose=0)
+        print("========== Fitting Data ==================================>")
+        try:
+            model.fit(X_train, y_train, epochs=epochs_number, verbose=0)
+        except:
+            content = {'error_message': 'data fitting failed!'}
+            return Response(data=content, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         model.save(saving_path)
 
@@ -171,9 +216,6 @@ def build_model(request):
     else:
         X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
         X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
-        print("--------------------------------------->")
-        print(X_train.shape)
-        print("--------------------------------------->")
         model = empty_model()
         model.add(layers.Dense(28))
         model.add(layers.Dense(100))
