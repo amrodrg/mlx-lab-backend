@@ -338,16 +338,6 @@ def get_prediction_shap_values(request):
     data_link = request.data['dataLink']
     label_name = request.data['labelName']
 
-    print("######################################################");
-    print("prediction_link: ", prediction_link)
-    print("######################################################");
-    print("model_name: ", model_name)
-    print("######################################################");
-    print("data_link: ", data_link)
-    print("######################################################");
-    print("label_name: ", label_name)
-    print("######################################################");
-
     host_ip_hash_string = hashlib.sha224(
         request.get_host().encode()).hexdigest()
     saving_formate = ".h5"
