@@ -25,11 +25,9 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from json import JSONEncoder
-import numpy as np
-import os
+import os, glob
 import datetime
 import hashlib
-
 
 # Variables
 INSURANCE_DATA_LINK = "https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/insurance.csv"
@@ -204,11 +202,15 @@ def build_model(request):
         model.save(saving_path)
 
         original_data_shape = X_train.head()
+        features_data_shape = X.columns
+
         zeros_dataFrame = pd.DataFrame(
             0, index=np.arange(1), columns=list(original_data_shape.columns))
-
         zeros_dataFrame.to_csv(
             saving_folder + model_name + "_data_shabe.csv", index=False)
+        features_dataFrame = pd.DataFrame(0,
+                 index=np.arange(1), columns=list(features_data_shape))
+        features_dataFrame.to_csv(saving_folder + model_name + "_features.csv", index=False)
 
         result = model.to_json()
         result = json.loads(result)
@@ -354,8 +356,8 @@ def get_prediction_shap_values(request):
         return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
-    original_data_shape = pd.read_csv(saving_folder + "data_shabe.csv") 
-    original_data_form = X_train.head()
+    original_data_shape = pd.read_csv(
+                saving_folder + model_name + "_data_shabe.csv")
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
 
@@ -432,33 +434,39 @@ def get_explainer_information(request):
 @api_view(['POST'])
 def get_model_information(request):
     model_name = request.data['modelName']
-    data_link = request.data['dataLink']
-    label_name = request.data['labelName']
 
     host_ip_hash_string = hashlib.sha224(
-    request.get_host().encode()).hexdigest()
+        request.get_host().encode()).hexdigest()
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
     saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
     last_modified = os.path.getmtime(saving_path)
     dt_m = datetime.datetime.fromtimestamp(last_modified)
+    saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
-    X, y = split_x_y_shap(data_link, label_name)
+    features_csv = pd.read_csv(
+                saving_folder + model_name + "_features.csv")
 
     featureArray = []
-    for feature in X.columns:
+    for feature in features_csv.columns:
         item = {"name": feature}
         featureArray.append(item)
 
+    model_list = []
+    for file in os.listdir(saving_folder):
+        if file.endswith(".h5"):
+            file_name = file.split('.')
+            clean_file_name = file_name[0].split('/')
+            model_list.append(clean_file_name[-1])
+
     feature_string = ""
-    for feature in X.columns:
+    for feature in features_csv.columns:
         feature_string = feature_string + " " + feature
 
     infoDic = {
         "modelName": model_name,
-        "labelToPredict": label_name,
-        "dataLink": data_link,
         "featureArray": featureArray,
+        "modelList": model_list,
         "modelFeaturesString": feature_string,
         "lastModified": dt_m
     }
@@ -483,7 +491,8 @@ def explain_model(request):
     saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
     loaded_model = tf.keras.models.load_model(saving_path)
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
-    original_data_shape = pd.read_csv(saving_folder + "data_shabe.csv") 
+    original_data_shape = pd.read_csv(
+                saving_folder + model_name + "_data_shabe.csv")
 
     background_value_int = int(background_value)
 
