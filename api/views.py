@@ -26,7 +26,8 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from json import JSONEncoder
-import os, glob
+import os
+import glob
 import datetime
 import hashlib
 
@@ -226,7 +227,7 @@ def build_model(request):
             saving_folder + model_name + "_data_shabe.csv", index=False)
 
         ###################### Save some stuff for the SHAP Info boxes ######################
-        # This primitive way of saving data was used because of the deadline 
+        # This primitive way of saving data was used because of the deadline
 
         features_data_shape = X.columns
         modelinfo_data_shape = [labels_name, data_link]
@@ -241,11 +242,13 @@ def build_model(request):
         modelinfo_data_shape.append(mean_value)
 
         features_dataFrame = pd.DataFrame(0,
-                 index=np.arange(1), columns=list(features_data_shape))
-        features_dataFrame.to_csv(saving_folder + model_name + "_features.csv", index=False)
+                                          index=np.arange(1), columns=list(features_data_shape))
+        features_dataFrame.to_csv(
+            saving_folder + model_name + "_features.csv", index=False)
         modelinfo_dataFrame = pd.DataFrame(0,
-                 index=np.arange(1), columns=list(modelinfo_data_shape))
-        modelinfo_dataFrame.to_csv(saving_folder + model_name + "_modelinfo.csv", index=False)
+                                           index=np.arange(1), columns=list(modelinfo_data_shape))
+        modelinfo_dataFrame.to_csv(
+            saving_folder + model_name + "_modelinfo.csv", index=False)
 
         #######################################################################################
         result = model.to_json()
@@ -399,7 +402,7 @@ def get_prediction_shap_values(request):
 
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
     original_data_shape = pd.read_csv(
-                saving_folder + model_name + "_data_shabe.csv")
+        saving_folder + model_name + "_data_shabe.csv")
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
 
@@ -446,10 +449,11 @@ def get_explainer_information(request):
     background_value_int = int(background_value)
 
     modelinfo_data_shape = pd.read_csv(
-            saving_folder + model_name + "_modelinfo.csv")
+        saving_folder + model_name + "_modelinfo.csv")
 
     try:
-        X, y = split_x_y(modelinfo_data_shape.columns[1], modelinfo_data_shape.columns[0])
+        X, y = split_x_y(
+            modelinfo_data_shape.columns[1], modelinfo_data_shape.columns[0])
         X_train, X_test, y_train, y_test = split_train_test(
             X, y, background_value_int/100)
     except:
@@ -493,9 +497,9 @@ def get_model_information(request):
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
     features_csv = pd.read_csv(
-                saving_folder + model_name + "_features.csv")
+        saving_folder + model_name + "_features.csv")
     modelinfo_data_shape = pd.read_csv(
-            saving_folder + model_name + "_modelinfo.csv")
+        saving_folder + model_name + "_modelinfo.csv")
 
     featureArray = []
     for feature in features_csv.columns:
@@ -541,14 +545,14 @@ def explain_model(request):
     label_name = request.data['labelName']
 
     host_ip_hash_string = hashlib.sha224(
-    request.get_host().encode()).hexdigest()
+        request.get_host().encode()).hexdigest()
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
     saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
     loaded_model = tf.keras.models.load_model(saving_path)
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
     original_data_shape = pd.read_csv(
-                saving_folder + model_name + "_data_shabe.csv")
+        saving_folder + model_name + "_data_shabe.csv")
 
     background_value_int = int(background_value)
 
