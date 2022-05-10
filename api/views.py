@@ -202,16 +202,34 @@ def build_model(request):
         model.save(saving_path)
 
         original_data_shape = X_train.head()
-        features_data_shape = X.columns
-
         zeros_dataFrame = pd.DataFrame(
             0, index=np.arange(1), columns=list(original_data_shape.columns))
         zeros_dataFrame.to_csv(
             saving_folder + model_name + "_data_shabe.csv", index=False)
+
+        ###################### Save some stuff for the SHAP Info boxes ######################
+        # This primitive way of saving data was used because of the deadline 
+
+        features_data_shape = X.columns
+        modelinfo_data_shape = [labels_name, data_link]
+
+        evaluation = model.evaluate(X_test, y_test)
+        medain_value = y_train.median()
+        mean_value = y_train.mean()
+
+        modelinfo_data_shape.append(evaluation[0])
+        modelinfo_data_shape.append(evaluation[1])
+        modelinfo_data_shape.append(medain_value)
+        modelinfo_data_shape.append(mean_value)
+
         features_dataFrame = pd.DataFrame(0,
                  index=np.arange(1), columns=list(features_data_shape))
         features_dataFrame.to_csv(saving_folder + model_name + "_features.csv", index=False)
+        modelinfo_dataFrame = pd.DataFrame(0,
+                 index=np.arange(1), columns=list(modelinfo_data_shape))
+        modelinfo_dataFrame.to_csv(saving_folder + model_name + "_modelinfo.csv", index=False)
 
+        #######################################################################################
         result = model.to_json()
         result = json.loads(result)
         return JsonResponse(result)
@@ -388,9 +406,7 @@ def get_prediction_shap_values(request):
 
 @api_view(['POST'])
 def get_explainer_information(request):
-    label_name = request.data['labelName']
     model_name = request.data['modelName']
-    data_link = request.data['dataLink']
     background_value = request.data['backgroundValue']
 
     host_ip_hash_string = hashlib.sha224(
@@ -401,11 +417,15 @@ def get_explainer_information(request):
     last_modified = os.path.getmtime(saving_path)
     dt_m = datetime.datetime.fromtimestamp(last_modified)
     loaded_model = tf.keras.models.load_model(saving_path)
+    saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
     background_value_int = int(background_value)
 
+    modelinfo_data_shape = pd.read_csv(
+            saving_folder + model_name + "_modelinfo.csv")
+
     try:
-        X, y = split_x_y(data_link, label_name)
+        X, y = split_x_y(modelinfo_data_shape.columns[1], modelinfo_data_shape.columns[0])
         X_train, X_test, y_train, y_test = split_train_test(
             X, y, background_value_int/100)
     except:
@@ -421,11 +441,15 @@ def get_explainer_information(request):
     resultDic = {
         "background_value": background_value,
         "modelName": model_name,
-        "dataLink": data_link,
+        "dataLink": modelinfo_data_shape.columns[1],
         "baseValue": int(kernel_explainer.expected_value),
-        "labelToPredict": label_name,
+        "labelToPredict": modelinfo_data_shape.columns[0],
         "modelFeaturesString": feature_string,
-        "lastModified": dt_m
+        "lastModified": dt_m,
+        "loss": modelinfo_data_shape.columns[2],
+        "accuracy": modelinfo_data_shape.columns[3],
+        "median": modelinfo_data_shape.columns[4],
+        "mean": modelinfo_data_shape.columns[5]
     }
 
     return JsonResponse(resultDic)
@@ -446,6 +470,8 @@ def get_model_information(request):
 
     features_csv = pd.read_csv(
                 saving_folder + model_name + "_features.csv")
+    modelinfo_data_shape = pd.read_csv(
+            saving_folder + model_name + "_modelinfo.csv")
 
     featureArray = []
     for feature in features_csv.columns:
@@ -468,7 +494,13 @@ def get_model_information(request):
         "featureArray": featureArray,
         "modelList": model_list,
         "modelFeaturesString": feature_string,
-        "lastModified": dt_m
+        "lastModified": dt_m,
+        "labelName": modelinfo_data_shape.columns[0],
+        "dataLink": modelinfo_data_shape.columns[1],
+        "loss": modelinfo_data_shape.columns[2],
+        "accuracy": modelinfo_data_shape.columns[3],
+        "median": modelinfo_data_shape.columns[4],
+        "mean": modelinfo_data_shape.columns[5]
     }
 
     return JsonResponse(infoDic)
