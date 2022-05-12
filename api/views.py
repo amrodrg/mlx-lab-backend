@@ -28,6 +28,9 @@ from json import JSONEncoder
 import os, glob
 import datetime
 import hashlib
+import matplotlib.pyplot as plt;
+import matplotlib
+matplotlib.use('Agg')
 
 # Variables
 INSURANCE_DATA_LINK = "https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/insurance.csv"
@@ -537,6 +540,10 @@ def explain_model(request):
         return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
+
+    shap_values = kernel_explainer.shap_values(X_test)
+    shap.summary_plot(shap_values[0], X_test, show=False)
+    plt.savefig("saved_models/" + model_name + '_summary_plot.png')
 
     if example == '1':
         cleanExampleDic = {}
