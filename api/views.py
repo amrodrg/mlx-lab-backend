@@ -6,7 +6,7 @@ from IPython.core.display import display, HTML
 import shap
 from sklearn.pipeline import make_pipeline
 from sklearn.neural_network import MLPRegressor
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from calendar import day_abbr
 import json
 from statistics import mode
@@ -21,11 +21,13 @@ import tensorflow as tf
 from django.http import HttpResponse, HttpResponseNotFound
 from tensorflow.keras import layers
 from tensorflow.keras import models
+from joblib import dump, load
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from json import JSONEncoder
-import os, glob
+import os
+import glob
 import datetime
 import hashlib
 import matplotlib.pyplot as plt;
@@ -50,8 +52,6 @@ def load_google_drive_data(data_link):
     path = 'https://drive.google.com/uc?export=download&id=' + \
         data_link.split('/')[-2]
     data = pd.read_csv(path)
-    print(
-        "========== Data Loaded From Drive ===================================================>")
     data_one_hot = pd.get_dummies(data=data)
     return data_one_hot
 
@@ -67,6 +67,13 @@ def split_train_test(X, y, test_size):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=42)
     return X_train, X_test, y_train, y_test
+
+
+def normalize_data(fitting_data, x_data):
+    scaler = MinMaxScaler()
+    scaler.fit(fitting_data)
+    normalized_data = scaler.transform(x_data)
+    return normalized_data, scaler
 
 
 def empty_model():
@@ -148,6 +155,7 @@ def build_model(request):
         loss_function = request.data['lossFunction']
         optimizer = request.data['optimizer']
         learning_rate = request.data['learningRate']
+        do_normalize = request.data['doNormalize']
         metrics = 'accuracy'
 
         host_ip_hash_string = hashlib.sha224(
@@ -161,6 +169,12 @@ def build_model(request):
             X, y = split_x_y(data_link, labels_name)
             X_train, X_test, y_train, y_test = split_train_test(
                 X, y, testing_percentage)
+            X_train_normal = X_train
+            if(do_normalize):
+                X_train_normal, scaler = normalize_data(X_train, X_train)
+                print("========== Data Normalized ================================>")
+                scaler_filename = saving_folder + model_name + "_scaler"
+                dump(scaler, scaler_filename)
         except:
             content = {'error_message': 'invalid data link!'}
             return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -182,6 +196,7 @@ def build_model(request):
         print('Username: ', request.user)
         print("--------------------------------------->")
         print('Data Shape: ', X_train.shape)
+        print('Normalized Data Shape: ', X_train_normal.shape)
         print('****************************************>')
 
         model = empty_model()
@@ -197,7 +212,11 @@ def build_model(request):
 
         print("========== Fitting Data ==================================>")
         try:
-            model.fit(X_train, y_train, epochs=epochs_number, verbose=0)
+            if(do_normalize):
+                model.fit(X_train_normal, y_train,
+                          epochs=epochs_number, verbose=0)
+            else:
+                model.fit(X_train, y_train, epochs=epochs_number, verbose=0)
         except:
             content = {'error_message': 'data fitting failed!'}
             return Response(data=content, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -211,7 +230,7 @@ def build_model(request):
             saving_folder + model_name + "_data_shabe.csv", index=False)
 
         ###################### Save some stuff for the SHAP Info boxes ######################
-        # This primitive way of saving data was used because of the deadline 
+        # This primitive way of saving data was used because of the deadline
 
         features_data_shape = X.columns
         modelinfo_data_shape = [labels_name, data_link]
@@ -226,11 +245,13 @@ def build_model(request):
         modelinfo_data_shape.append(mean_value)
 
         features_dataFrame = pd.DataFrame(0,
-                 index=np.arange(1), columns=list(features_data_shape))
-        features_dataFrame.to_csv(saving_folder + model_name + "_features.csv", index=False)
+                                          index=np.arange(1), columns=list(features_data_shape))
+        features_dataFrame.to_csv(
+            saving_folder + model_name + "_features.csv", index=False)
         modelinfo_dataFrame = pd.DataFrame(0,
-                 index=np.arange(1), columns=list(modelinfo_data_shape))
-        modelinfo_dataFrame.to_csv(saving_folder + model_name + "_modelinfo.csv", index=False)
+                                           index=np.arange(1), columns=list(modelinfo_data_shape))
+        modelinfo_dataFrame.to_csv(
+            saving_folder + model_name + "_modelinfo.csv", index=False)
 
         #######################################################################################
         result = model.to_json()
@@ -264,6 +285,7 @@ def evaluate_model(request):
         data_link = request.data['dataLink']
         labels_name = request.data['labelsName']
         testing_percentage = request.data['testingPercentage']/100
+        do_normalize = request.data['doNormalize']
 
         host_ip_hash_string = hashlib.sha224(
             request.get_host().encode()).hexdigest()
@@ -276,8 +298,12 @@ def evaluate_model(request):
         X, y = split_x_y(data_link, labels_name)
         X_train, X_test, y_train, y_test = split_train_test(
             X, y, testing_percentage)
+        X_test_normal = X_test
+        if(do_normalize):
+            print("========= Normalizing X_test =========> ")
+            X_test_normal, scaler = normalize_data(X_train, X_test)
 
-        evaluation = loaded_model.evaluate(X_test, y_test)
+        evaluation = loaded_model.evaluate(X_test_normal, y_test)
         medain_value = y_train.median()
         mean_value = y_train.mean()
 
@@ -292,7 +318,7 @@ def evaluate_model(request):
                 mean_value)),
         }
 
-        print("=========Evaluation=========> ", evaluation)
+        print("============ Evaluation =========> ", evaluation)
         return JsonResponse(evaluation_dict)
     return
 
@@ -302,6 +328,7 @@ def use_model(request):
     if request.method == "POST":
         model_name = request.data['modelName']
         prediction_data_link = request.data['predictionDataLink']
+        do_normalize = request.data['doNormalize']
 
         host_ip_hash_string = hashlib.sha224(
             request.get_host().encode()).hexdigest()
@@ -310,21 +337,21 @@ def use_model(request):
         saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
         saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
-        print("========== Loading Model ==============================================>")
         loaded_model = tf.keras.models.load_model(saving_path)
-        print("========== Model Loaded ===============================================>")
 
         original_data_shape = pd.read_csv(
             saving_folder + model_name + "_data_shabe.csv")
-        print("========== Training Data Shape Loaded =================================>")
 
         loaded_data = load_google_drive_data(prediction_data_link)
-        print("========== Prediction Data Loaded =====================================>")
 
         filled_dataFrame = pd.DataFrame(
             0, index=np.arange(len(loaded_data)), columns=list(original_data_shape.columns))
 
         filled_dataFrame.update(loaded_data)
+
+        if(do_normalize):
+            scaler = load(saving_folder + model_name + '_scaler')
+            filled_dataFrame = scaler.transform(filled_dataFrame)
 
         predictions = loaded_model.predict(filled_dataFrame)
 
@@ -378,7 +405,7 @@ def get_prediction_shap_values(request):
 
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
     original_data_shape = pd.read_csv(
-                saving_folder + model_name + "_data_shabe.csv")
+        saving_folder + model_name + "_data_shabe.csv")
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
 
@@ -425,10 +452,11 @@ def get_explainer_information(request):
     background_value_int = int(background_value)
 
     modelinfo_data_shape = pd.read_csv(
-            saving_folder + model_name + "_modelinfo.csv")
+        saving_folder + model_name + "_modelinfo.csv")
 
     try:
-        X, y = split_x_y(modelinfo_data_shape.columns[1], modelinfo_data_shape.columns[0])
+        X, y = split_x_y(
+            modelinfo_data_shape.columns[1], modelinfo_data_shape.columns[0])
         X_train, X_test, y_train, y_test = split_train_test(
             X, y, background_value_int/100)
     except:
@@ -472,9 +500,9 @@ def get_model_information(request):
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
     features_csv = pd.read_csv(
-                saving_folder + model_name + "_features.csv")
+        saving_folder + model_name + "_features.csv")
     modelinfo_data_shape = pd.read_csv(
-            saving_folder + model_name + "_modelinfo.csv")
+        saving_folder + model_name + "_modelinfo.csv")
 
     featureArray = []
     for feature in features_csv.columns:
@@ -520,14 +548,14 @@ def explain_model(request):
     label_name = request.data['labelName']
 
     host_ip_hash_string = hashlib.sha224(
-    request.get_host().encode()).hexdigest()
+        request.get_host().encode()).hexdigest()
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
     saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
     loaded_model = tf.keras.models.load_model(saving_path)
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
     original_data_shape = pd.read_csv(
-                saving_folder + model_name + "_data_shabe.csv")
+        saving_folder + model_name + "_data_shabe.csv")
 
     background_value_int = int(background_value)
 
