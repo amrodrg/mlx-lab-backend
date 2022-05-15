@@ -8,6 +8,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from calendar import day_abbr
+from os.path import exists
 import json
 from statistics import mode
 from unittest import result
@@ -449,6 +450,8 @@ def get_explainer_information(request):
     loaded_model = tf.keras.models.load_model(saving_path)
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
+    summary_exist = exists("saved_models/" + model_name + '_summary_plot.png')
+
     background_value_int = int(background_value)
 
     modelinfo_data_shape = pd.read_csv(
@@ -476,6 +479,7 @@ def get_explainer_information(request):
         "baseValue": int(kernel_explainer.expected_value),
         "labelToPredict": modelinfo_data_shape.columns[0],
         "modelFeaturesString": feature_string,
+        "summaryExist": summary_exist,
         "lastModified": dt_m,
         "loss": modelinfo_data_shape.columns[2],
         "accuracy": modelinfo_data_shape.columns[3],
@@ -498,6 +502,8 @@ def get_model_information(request):
     last_modified = os.path.getmtime(saving_path)
     dt_m = datetime.datetime.fromtimestamp(last_modified)
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
+
+    summary_exist = exists("saved_models/" + model_name + '_summary_plot.png')
 
     features_csv = pd.read_csv(
         saving_folder + model_name + "_features.csv")
@@ -526,6 +532,7 @@ def get_model_information(request):
         "modelList": model_list,
         "modelFeaturesString": feature_string,
         "lastModified": dt_m,
+        "summaryExist": summary_exist,
         "labelName": modelinfo_data_shape.columns[0],
         "dataLink": modelinfo_data_shape.columns[1],
         "loss": modelinfo_data_shape.columns[2],
@@ -546,6 +553,7 @@ def explain_model(request):
     fExampleArray = request.data['fExampleArray']
     data_link = request.data['dataLink']
     label_name = request.data['labelName']
+    calculate_summary = request.data['calculateSummary']
 
     host_ip_hash_string = hashlib.sha224(
         request.get_host().encode()).hexdigest()
@@ -569,9 +577,10 @@ def explain_model(request):
 
     kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
 
-    shap_values = kernel_explainer.shap_values(X_test)
-    shap.summary_plot(shap_values[0], X_test, show=False)
-    plt.savefig("saved_models/" + model_name + '_summary_plot.png')
+    if calculate_summary:
+        shap_values = kernel_explainer.shap_values(X_test) 
+        shap.summary_plot(shap_values[0], X_test, show=False)
+        plt.savefig("saved_models/" + model_name + '_summary_plot.png')
 
     if example == '1':
         cleanExampleDic = {}
