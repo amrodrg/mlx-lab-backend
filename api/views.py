@@ -233,24 +233,28 @@ def build_model(request):
         ###################### Save some stuff for the SHAP Info boxes ######################
         # This primitive way of saving data was used because of the deadline
 
-        features_data_shape = X.columns
-        modelinfo_data_shape = [labels_name, data_link]
-
+        print("################################################## 1")
+        X_shap, y_shap = split_x_y_shap(data_link, labels_name)
+        print("################################################## 2")
+        features_data_shap = X_shap.columns
+        print("################################################## 3")
+        modelinfo_data_shap = [labels_name, data_link]
+        print("################################################## 4")
         evaluation = model.evaluate(X_test, y_test)
         medain_value = y_train.median()
         mean_value = y_train.mean()
-
-        modelinfo_data_shape.append(evaluation[0])
-        modelinfo_data_shape.append(evaluation[1])
-        modelinfo_data_shape.append(medain_value)
-        modelinfo_data_shape.append(mean_value)
+        print("################################################## 5")
+        modelinfo_data_shap.append(evaluation[0])
+        modelinfo_data_shap.append(evaluation[1])
+        modelinfo_data_shap.append(medain_value)
+        modelinfo_data_shap.append(mean_value)
 
         features_dataFrame = pd.DataFrame(0,
-                                          index=np.arange(1), columns=list(features_data_shape))
+                                          index=np.arange(1), columns=list(features_data_shap))
         features_dataFrame.to_csv(
             saving_folder + model_name + "_features.csv", index=False)
         modelinfo_dataFrame = pd.DataFrame(0,
-                                           index=np.arange(1), columns=list(modelinfo_data_shape))
+                                           index=np.arange(1), columns=list(modelinfo_data_shap))
         modelinfo_dataFrame.to_csv(
             saving_folder + model_name + "_modelinfo.csv", index=False)
 
@@ -370,13 +374,14 @@ def use_model(request):
 ##################################################### SHAP ######################################################
 
 
-def load_data_shap(data_link):
-    data = pd.read_csv(data_link)
+def load_google_drive_data(data_link):
+    path = 'https://drive.google.com/uc?export=download&id=' + \
+        data_link.split('/')[-2]
+    data = pd.read_csv(path)
     return data
 
-
 def split_x_y_shap(data_link, labels_name):
-    data = load_data_shap(data_link)
+    data = load_google_drive_data(data_link)
     X = data.drop(labels_name, axis=1)
     y = data[labels_name]
     return X, y
@@ -610,7 +615,13 @@ def explain_model(request):
         return JsonResponse(subJsonPlotArray, safe=False)
 
     elif example == '2':
-        loaded_data = load_google_drive_data(prediction_link)
+        try:
+            path = 'https://drive.google.com/uc?export=download&id=' + \
+                prediction_link.split('/')[-2]
+            loaded_data = pd.read_csv(path)
+        except:
+            content = {'message': 'Data Link is Invalid!'}
+            return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         filled_dataFrame = pd.DataFrame(
             0, index=np.arange(len(loaded_data)), columns=list(original_data_shape.columns))
