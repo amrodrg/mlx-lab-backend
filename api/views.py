@@ -82,24 +82,24 @@ def add_dense_layer(model, neurons_num, act):
     model.add(layers.Dense(neurons_num, activation=act))
 
 
-def compile_model(model, loss_function, optimizer, metrics, learning_rate):
+def compile_model(model, loss_function, optimizer, learning_rate):
     if (optimizer == "adam"):
         model.compile(
             loss=loss_function,
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-            metrics=[metrics]
+            metrics=['mae', 'accuracy']
         )
     elif (optimizer == "sgd"):
         model.compile(
             loss=loss_function,
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-            metrics=[metrics]
+            metrics=['mae', 'accuracy']
         )
     else:
         model.compile(
             loss=loss_function,
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-            metrics=[metrics]
+            metrics=['mae', 'accuracy']
         )
     return model
 
@@ -153,7 +153,6 @@ def build_model(request):
         optimizer = request.data['optimizer']
         learning_rate = request.data['learningRate']
         do_normalize = request.data['doNormalize']
-        metrics = 'accuracy'
 
         host_ip_hash_string = hashlib.sha224(
             request.get_host().encode()).hexdigest()
@@ -189,7 +188,6 @@ def build_model(request):
         print('Loss Function: ', loss_function)
         print('Optimizer Function: ', optimizer)
         print('Learning Rate: ', learning_rate)
-        print('Evaluation Metrics: ', metrics)
         print('Username: ', request.user)
         print("--------------------------------------->")
         print('Data Shape: ', X_train.shape)
@@ -204,8 +202,8 @@ def build_model(request):
         model.add(layers.Dense(1))
 
         print("========== Compiling =====================================>")
-        model = compile_model(model=model, loss_function=loss_function, optimizer=optimizer,
-                              metrics=metrics, learning_rate=learning_rate)
+        model = compile_model(model=model, loss_function=loss_function,
+                              optimizer=optimizer, learning_rate=learning_rate)
 
         print("========== Fitting Data ==================================>")
         try:
@@ -226,52 +224,8 @@ def build_model(request):
         zeros_dataFrame.to_csv(
             saving_folder + model_name + "_data_shabe.csv", index=False)
 
-        ###################### Save some stuff for the SHAP Info boxes ######################
-        # This primitive way of saving data was used because of the deadline
-
-        features_data_shape = X.columns
-        modelinfo_data_shape = [labels_name, data_link]
-
-        evaluation = model.evaluate(X_test, y_test)
-        medain_value = y_train.median()
-        mean_value = y_train.mean()
-
-        modelinfo_data_shape.append(evaluation[0])
-        modelinfo_data_shape.append(evaluation[1])
-        modelinfo_data_shape.append(medain_value)
-        modelinfo_data_shape.append(mean_value)
-
-        features_dataFrame = pd.DataFrame(0,
-                                          index=np.arange(1), columns=list(features_data_shape))
-        features_dataFrame.to_csv(
-            saving_folder + model_name + "_features.csv", index=False)
-        modelinfo_dataFrame = pd.DataFrame(0,
-                                           index=np.arange(1), columns=list(modelinfo_data_shape))
-        modelinfo_dataFrame.to_csv(
-            saving_folder + model_name + "_modelinfo.csv", index=False)
-
-        #######################################################################################
         result = model.to_json()
         result = json.loads(result)
-        return JsonResponse(result)
-
-    else:
-        X, y = split_x_y(INSURANCE_DATA_LINK, 'charges')
-        X_train, X_test, y_train, y_test = split_train_test(X, y, 0.2)
-        model = empty_model()
-        model.add(layers.Dense(28))
-        model.add(layers.Dense(100))
-        model.add(layers.Dense(10))
-        model.add(layers.Dense(1))
-        model.compile(loss=tf.keras.losses.mae,
-                      optimizer=tf.keras.optimizers.Adam(),
-                      metrics=['mae']
-                      )
-
-        model.fit(X_train, y_train, epochs=5, verbose=0)
-        result = model.to_json()
-        result = json.loads(result)
-        # model.save(tensorflow_models/model_name+userID)
         return JsonResponse(result)
 
 
@@ -305,10 +259,10 @@ def evaluate_model(request):
         mean_value = y_train.mean()
 
         evaluation_dict = {
-            'loss': float("{:.2f}".format(
-                evaluation[0])),
-            'accuracy': float("{:.2f}".format(
+            'mae': float("{:.2f}".format(
                 evaluation[1])),
+            'accuracy': float("{:.2f}".format(
+                evaluation[2])),
             'median': float("{:.2f}".format(
                 medain_value)),
             'mean': float("{:.2f}".format(
@@ -359,262 +313,4 @@ def use_model(request):
                 {'idx': p, 'prediction': predictions[p][0]})
 
         return JsonResponse(predictions_list, safe=False)
-    return
-
-
-#################################################################################################################
-##################################################### SHAP ######################################################
-
-
-def load_data_shap(data_link):
-    data = pd.read_csv(data_link)
-    return data
-
-
-def split_x_y_shap(data_link, labels_name):
-    data = load_data_shap(data_link)
-    X = data.drop(labels_name, axis=1)
-    y = data[labels_name]
-    return X, y
-
-
-@api_view(['POST'])
-def get_prediction_shap_values(request):
-    prediction_link = request.data['predictionDataLink']
-    model_name = request.data['modelName']
-    data_link = request.data['dataLink']
-    label_name = request.data['labelName']
-
-    host_ip_hash_string = hashlib.sha224(
-        request.get_host().encode()).hexdigest()
-    saving_formate = ".h5"
-    saving_name = model_name + saving_formate
-    saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
-    loaded_model = tf.keras.models.load_model(saving_path)
-
-    try:
-        X, y = split_x_y(data_link, label_name)
-        X_train, X_test, y_train, y_test = split_train_test(
-            X, y, 0.2)
-    except:
-        content = {'error_message': 'invalid data link!'}
-        return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
-    saving_folder = "saved_models/" + host_ip_hash_string + "/"
-    original_data_shape = pd.read_csv(
-        saving_folder + model_name + "_data_shabe.csv")
-
-    kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
-
-    loaded_data = load_google_drive_data(prediction_link)
-
-    filled_dataFrame = pd.DataFrame(
-        0, index=np.arange(len(loaded_data)), columns=list(original_data_shape.columns))
-    filled_dataFrame.update(loaded_data)
-
-    shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
-    numEntries = len(shap_values_list[0])
-
-    jsonPlotArray = []
-    for pred in range(0, numEntries):
-        subJsonPlotArray = []
-        counter = 0
-        for column in filled_dataFrame.columns:
-            entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(
-                filled_dataFrame.iloc[pred][column])}
-            subJsonPlotArray.append(entry)
-            counter = counter + 1
-        jsonPlotArray.append(subJsonPlotArray)
-
-    print("RESULT: ", jsonPlotArray)
-
-    return JsonResponse(jsonPlotArray, safe=False)
-
-
-@api_view(['POST'])
-def get_explainer_information(request):
-    model_name = request.data['modelName']
-    background_value = request.data['backgroundValue']
-
-    host_ip_hash_string = hashlib.sha224(
-        request.get_host().encode()).hexdigest()
-    saving_formate = ".h5"
-    saving_name = model_name + saving_formate
-    saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
-    last_modified = os.path.getmtime(saving_path)
-    dt_m = datetime.datetime.fromtimestamp(last_modified)
-    loaded_model = tf.keras.models.load_model(saving_path)
-    saving_folder = "saved_models/" + host_ip_hash_string + "/"
-
-    background_value_int = int(background_value)
-
-    modelinfo_data_shape = pd.read_csv(
-        saving_folder + model_name + "_modelinfo.csv")
-
-    try:
-        X, y = split_x_y(
-            modelinfo_data_shape.columns[1], modelinfo_data_shape.columns[0])
-        X_train, X_test, y_train, y_test = split_train_test(
-            X, y, background_value_int/100)
-    except:
-        content = {'error_message': 'invalid data link!'}
-        return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
-    kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
-
-    feature_string = ""
-    for feature in X.columns:
-        feature_string = feature_string + " " + feature
-
-    resultDic = {
-        "background_value": background_value,
-        "modelName": model_name,
-        "dataLink": modelinfo_data_shape.columns[1],
-        "baseValue": int(kernel_explainer.expected_value),
-        "labelToPredict": modelinfo_data_shape.columns[0],
-        "modelFeaturesString": feature_string,
-        "lastModified": dt_m,
-        "loss": modelinfo_data_shape.columns[2],
-        "accuracy": modelinfo_data_shape.columns[3],
-        "median": modelinfo_data_shape.columns[4],
-        "mean": modelinfo_data_shape.columns[5]
-    }
-
-    return JsonResponse(resultDic)
-
-
-@api_view(['POST'])
-def get_model_information(request):
-    model_name = request.data['modelName']
-
-    host_ip_hash_string = hashlib.sha224(
-        request.get_host().encode()).hexdigest()
-    saving_formate = ".h5"
-    saving_name = model_name + saving_formate
-    saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
-    last_modified = os.path.getmtime(saving_path)
-    dt_m = datetime.datetime.fromtimestamp(last_modified)
-    saving_folder = "saved_models/" + host_ip_hash_string + "/"
-
-    features_csv = pd.read_csv(
-        saving_folder + model_name + "_features.csv")
-    modelinfo_data_shape = pd.read_csv(
-        saving_folder + model_name + "_modelinfo.csv")
-
-    featureArray = []
-    for feature in features_csv.columns:
-        item = {"name": feature}
-        featureArray.append(item)
-
-    model_list = []
-    for file in os.listdir(saving_folder):
-        if file.endswith(".h5"):
-            file_name = file.split('.')
-            clean_file_name = file_name[0].split('/')
-            model_list.append(clean_file_name[-1])
-
-    feature_string = ""
-    for feature in features_csv.columns:
-        feature_string = feature_string + " " + feature
-
-    infoDic = {
-        "modelName": model_name,
-        "featureArray": featureArray,
-        "modelList": model_list,
-        "modelFeaturesString": feature_string,
-        "lastModified": dt_m,
-        "labelName": modelinfo_data_shape.columns[0],
-        "dataLink": modelinfo_data_shape.columns[1],
-        "loss": modelinfo_data_shape.columns[2],
-        "accuracy": modelinfo_data_shape.columns[3],
-        "median": modelinfo_data_shape.columns[4],
-        "mean": modelinfo_data_shape.columns[5]
-    }
-
-    return JsonResponse(infoDic)
-
-
-@api_view(['POST'])
-def explain_model(request):
-    model_name = request.data['modelName']
-    background_value = request.data['backgroundValue']
-    example = request.data['example']
-    prediction_link = request.data['predictionDataLink']
-    fExampleArray = request.data['fExampleArray']
-    data_link = request.data['dataLink']
-    label_name = request.data['labelName']
-
-    host_ip_hash_string = hashlib.sha224(
-        request.get_host().encode()).hexdigest()
-    saving_formate = ".h5"
-    saving_name = model_name + saving_formate
-    saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
-    loaded_model = tf.keras.models.load_model(saving_path)
-    saving_folder = "saved_models/" + host_ip_hash_string + "/"
-    original_data_shape = pd.read_csv(
-        saving_folder + model_name + "_data_shabe.csv")
-
-    background_value_int = int(background_value)
-
-    try:
-        X, y = split_x_y(data_link, label_name)
-        X_train, X_test, y_train, y_test = split_train_test(
-            X, y, background_value_int/100)
-    except:
-        content = {'error_message': 'invalid data link!'}
-        return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
-    kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
-
-    if example == '1':
-        cleanExampleDic = {}
-        for key in fExampleArray.keys():
-            itemValue = fExampleArray.get(key)
-            if any(char.isdigit() for char in itemValue):
-                itemValue = int(itemValue)
-            cleanExampleDic[key] = itemValue
-
-        # wrap user example in a data frame
-        exampleDataFrame = pd.DataFrame(cleanExampleDic, index=[0])
-        data_one_hot = pd.get_dummies(data=exampleDataFrame)
-
-        filled_dataFrame = pd.DataFrame(
-            0, index=np.arange(len(data_one_hot)), columns=list(original_data_shape.columns))
-        filled_dataFrame.update(data_one_hot)
-        shap_values_list = kernel_explainer.shap_values(
-            filled_dataFrame.values)
-
-        subJsonPlotArray = []
-        counter = 0
-        for column in filled_dataFrame.columns:
-            subJsonPlotArray.append({'name': column, 'effect': shap_values_list[0][0][counter], 'value': int(
-                filled_dataFrame.iloc[0][column])})
-            counter = counter + 1
-
-        return JsonResponse(subJsonPlotArray, safe=False)
-
-    elif example == '2':
-        loaded_data = load_google_drive_data(prediction_link)
-
-        filled_dataFrame = pd.DataFrame(
-            0, index=np.arange(len(loaded_data)), columns=list(original_data_shape.columns))
-        filled_dataFrame.update(loaded_data)
-
-        shap_values_list = kernel_explainer.shap_values(
-            filled_dataFrame.values)
-        numEntries = len(shap_values_list[0])
-
-        jsonPlotArray = []
-        for pred in range(0, numEntries):
-            subJsonPlotArray = []
-            counter = 0
-            for column in filled_dataFrame.columns:
-                entry = {'name': column, 'effect': shap_values_list[0][pred][counter], 'value': int(
-                    filled_dataFrame.iloc[pred][column])}
-                subJsonPlotArray.append(entry)
-                counter = counter + 1
-            jsonPlotArray.append(subJsonPlotArray)
-
-        return JsonResponse(jsonPlotArray, safe=False)
-
     return
