@@ -233,17 +233,14 @@ def build_model(request):
         ###################### Save some stuff for the SHAP Info boxes ######################
         # This primitive way of saving data was used because of the deadline
 
-        print("################################################## 1")
-        X_shap, y_shap = split_x_y_shap(data_link, labels_name)
-        print("################################################## 2")
+        X_shap, y_shap = split_x_y(data_link, labels_name)
         features_data_shap = X_shap.columns
-        print("################################################## 3")
         modelinfo_data_shap = [labels_name, data_link]
-        print("################################################## 4")
+        
         evaluation = model.evaluate(X_test, y_test)
         medain_value = y_train.median()
         mean_value = y_train.mean()
-        print("################################################## 5")
+
         modelinfo_data_shap.append(evaluation[0])
         modelinfo_data_shap.append(evaluation[1])
         modelinfo_data_shap.append(medain_value)
@@ -372,19 +369,6 @@ def use_model(request):
 
 #################################################################################################################
 ##################################################### SHAP ######################################################
-
-
-def load_google_drive_data(data_link):
-    path = 'https://drive.google.com/uc?export=download&id=' + \
-        data_link.split('/')[-2]
-    data = pd.read_csv(path)
-    return data
-
-def split_x_y_shap(data_link, labels_name):
-    data = load_google_drive_data(data_link)
-    X = data.drop(labels_name, axis=1)
-    y = data[labels_name]
-    return X, y
 
 
 @api_view(['POST'])
