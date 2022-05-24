@@ -153,6 +153,8 @@ def build_model(request):
         optimizer = request.data['optimizer']
         learning_rate = request.data['learningRate']
         do_normalize = request.data['doNormalize']
+        is_classification = request.data['isClassification']
+        prediction_classes_num = request.data['predictionClassesNum']
 
         host_ip_hash_string = hashlib.sha224(
             request.get_host().encode()).hexdigest()
@@ -196,10 +198,17 @@ def build_model(request):
 
         model = empty_model()
 
+        if(len(X_train.shape) > 2):
+            _list = []
+            for i in range(len(X_train.shape)-1):
+                _list.append(X_train.shape[i+1])
+            _model_input_shape = tuple(_list)
+            model.add(layers.Flatten(input_shape=_model_input_shape))
+
         for l in range(layersNum):
             model.add(layers.Dense(
                 neuronsNumList[l], activation_functions_list[l]))
-        model.add(layers.Dense(1))
+        model.add(layers.Dense(prediction_classes_num))
 
         print("========== Compiling =====================================>")
         model = compile_model(model=model, loss_function=loss_function,
