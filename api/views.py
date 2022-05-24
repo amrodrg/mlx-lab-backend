@@ -1,16 +1,8 @@
-from cProfile import label
-from doctest import Example
-from urllib import response
+
 from sklearn.datasets import load_diabetes
 from IPython.core.display import display, HTML
-import shap
-from sklearn.pipeline import make_pipeline
-from sklearn.neural_network import MLPRegressor
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from calendar import day_abbr
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder
 import json
-from statistics import mode
-from unittest import result
 from django.shortcuts import render
 from django.http import JsonResponse
 from rest_framework import status
@@ -18,7 +10,6 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
 import tensorflow as tf
-from django.http import HttpResponse, HttpResponseNotFound
 from tensorflow.keras import layers
 from tensorflow.keras import models
 from joblib import dump, load
@@ -26,9 +17,6 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from json import JSONEncoder
-import os
-import glob
-import datetime
 import hashlib
 
 # Variables
@@ -49,15 +37,28 @@ def load_google_drive_data(data_link):
     path = 'https://drive.google.com/uc?export=download&id=' + \
         data_link.split('/')[-2]
     data = pd.read_csv(path)
+    return data
+
+
+def split_x_y_regression(data_link, labels_name):
+    data = load_google_drive_data(data_link=data_link)  # load_data(data_link)
     data_one_hot = pd.get_dummies(data=data)
-    return data_one_hot
+    X = data_one_hot.drop(labels_name, axis=1)
+    y = data_one_hot[labels_name]
+    return X, y
 
 
-def split_x_y(data_link, labels_name):
+def split_x_y_classification(data_link, labels_name):
     data = load_google_drive_data(data_link=data_link)  # load_data(data_link)
     X = data.drop(labels_name, axis=1)
+    X_one_hot = pd.get_dummies(data=X)
     y = data[labels_name]
-    return X, y
+    label_encouder = LabelEncoder()
+    label_encouder.fit(y)
+    y_encouded = label_encouder.transform(y)
+    y_encouded = pd.DataFrame({labels_name: y_encouded}, index=None)
+    y_encouded = y_encouded[labels_name]
+    return X_one_hot, y_encouded
 
 
 def split_train_test(X, y, test_size):
@@ -155,6 +156,8 @@ def build_model(request):
         do_normalize = request.data['doNormalize']
         is_classification = request.data['isClassification']
         prediction_classes_num = request.data['predictionClassesNum']
+        automated_classes_num = request.data['automatedClassesNum']
+        output_layer_activiation = "softmax"
 
         host_ip_hash_string = hashlib.sha224(
             request.get_host().encode()).hexdigest()
@@ -164,7 +167,7 @@ def build_model(request):
         saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
         try:
-            X, y = split_x_y(data_link, labels_name)
+            X, y = split_x_y_regression(data_link, labels_name)
             X_train, X_test, y_train, y_test = split_train_test(
                 X, y, testing_percentage)
             X_train_normal = X_train
@@ -208,7 +211,13 @@ def build_model(request):
         for l in range(layersNum):
             model.add(layers.Dense(
                 neuronsNumList[l], activation_functions_list[l]))
-        model.add(layers.Dense(prediction_classes_num))
+        if(is_classification):
+            if(automated_classes_num or prediction_classes_num == 0):
+                prediction_classes_num = y_train.value_counts().count()
+            model.add(layers.Dense(prediction_classes_num,
+                      activation=output_layer_activiation))
+        else:
+            model.add(layers.Dense(1, activation="relu"))
 
         print("========== Compiling =====================================>")
         model = compile_model(model=model, loss_function=loss_function,
@@ -255,7 +264,7 @@ def evaluate_model(request):
 
         loaded_model = tf.keras.models.load_model(saving_path)
 
-        X, y = split_x_y(data_link, labels_name)
+        X, y = split_x_y_regression(data_link, labels_name)
         X_train, X_test, y_train, y_test = split_train_test(
             X, y, testing_percentage)
         X_test_normal = X_test
@@ -303,6 +312,7 @@ def use_model(request):
             saving_folder + model_name + "_data_shabe.csv")
 
         loaded_data = load_google_drive_data(prediction_data_link)
+        loaded_data = pd.get_dummies(data=loaded_data)
 
         filled_dataFrame = pd.DataFrame(
             0, index=np.arange(len(loaded_data)), columns=list(original_data_shape.columns))
