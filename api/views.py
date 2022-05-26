@@ -157,7 +157,7 @@ def build_model(request):
         is_classification = request.data['isClassification']
         prediction_classes_num = request.data['predictionClassesNum']
         automated_classes_num = request.data['automatedClassesNum']
-        output_layer_activiation = "softmax"
+        output_layer_activiation = request.data['outputActivation']
 
         host_ip_hash_string = hashlib.sha224(
             request.get_host().encode()).hexdigest()
@@ -166,10 +166,17 @@ def build_model(request):
         saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
         saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
+        print("========== prepparing Data ================================>")
+        X, y = [], []
         try:
-            X, y = split_x_y_regression(data_link, labels_name)
+            if(is_classification):
+                X, y = split_x_y_classification(data_link, labels_name)
+            else:
+                X, y = split_x_y_regression(data_link, labels_name)
+            print("========== Data splited ================================>")
             X_train, X_test, y_train, y_test = split_train_test(
                 X, y, testing_percentage)
+            print("========== Data sorted to train and test =================>")
             X_train_normal = X_train
             if(do_normalize):
                 X_train_normal, scaler = normalize_data(X_train, X_train)
@@ -181,6 +188,7 @@ def build_model(request):
             return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         print("--------------------------------------->")
+        print('Is Classification: ', is_classification)
         print('Neurons Numbers: ', neuronsNumList)
         print('Activation Functions List: ', activation_functions_list)
         print('Layers Number: ', layersNum)
@@ -212,8 +220,13 @@ def build_model(request):
             model.add(layers.Dense(
                 neuronsNumList[l], activation_functions_list[l]))
         if(is_classification):
-            if(automated_classes_num or prediction_classes_num == 0):
+            if(automated_classes_num or prediction_classes_num <= 0):
                 prediction_classes_num = y_train.value_counts().count()
+                print('Prediction Classes Number: ', prediction_classes_num)
+                if(prediction_classes_num > 2):
+                    output_layer_activiation = "softmax"
+                else:
+                    output_layer_activiation = "sigmoid"
             model.add(layers.Dense(prediction_classes_num,
                       activation=output_layer_activiation))
         else:
@@ -255,6 +268,7 @@ def evaluate_model(request):
         labels_name = request.data['labelsName']
         testing_percentage = request.data['testingPercentage']/100
         do_normalize = request.data['doNormalize']
+        is_classification = request.data['isClassification']
 
         host_ip_hash_string = hashlib.sha224(
             request.get_host().encode()).hexdigest()
@@ -264,7 +278,12 @@ def evaluate_model(request):
 
         loaded_model = tf.keras.models.load_model(saving_path)
 
-        X, y = split_x_y_regression(data_link, labels_name)
+        print("========== prepparing Data for evaluation ================================>")
+        X, y = [], []
+        if(is_classification):
+            X, y = split_x_y_classification(data_link, labels_name)
+        else:
+            X, y = split_x_y_regression(data_link, labels_name)
         X_train, X_test, y_train, y_test = split_train_test(
             X, y, testing_percentage)
         X_test_normal = X_test
