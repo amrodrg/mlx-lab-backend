@@ -19,5 +19,8 @@ urlpatterns = [
     path("shap/explainer_information",
          view=views.get_explainer_information, name="explainer_information"),
     path("shap/prediction_shap_values",
-         view=views.get_prediction_shap_values, name="prediction_shap_values")
+         view=views.get_prediction_shap_values, name="prediction_shap_values"),
+    path("shap/model_list",
+         view=views.get_model_list, name="model_list")
+
 ]

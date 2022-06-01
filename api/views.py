@@ -9,6 +9,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from calendar import day_abbr
 from os.path import exists
+from matplotlib.pyplot import figure
 import json
 from statistics import mode
 from unittest import result
@@ -26,6 +27,7 @@ from joblib import dump, load
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
 from json import JSONEncoder
 import os
 import glob
@@ -242,7 +244,6 @@ def build_model(request):
         mean_value = y_train.mean()
 
         modelinfo_data_shap.append(evaluation[0])
-        modelinfo_data_shap.append(evaluation[1])
         modelinfo_data_shap.append(medain_value)
         modelinfo_data_shap.append(mean_value)
 
@@ -397,7 +398,8 @@ def get_prediction_shap_values(request):
     original_data_shape = pd.read_csv(
         saving_folder + model_name + "_data_shabe.csv")
 
-    kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
+    med = X_test.median().values.reshape((1,X_test.shape[1]))
+    kernel_explainer = shap.KernelExplainer(loaded_model, med)
 
     loaded_data = load_google_drive_data(prediction_link)
 
@@ -418,8 +420,6 @@ def get_prediction_shap_values(request):
             subJsonPlotArray.append(entry)
             counter = counter + 1
         jsonPlotArray.append(subJsonPlotArray)
-
-    print("RESULT: ", jsonPlotArray)
 
     return JsonResponse(jsonPlotArray, safe=False)
 
@@ -478,6 +478,22 @@ def get_explainer_information(request):
 
     return JsonResponse(resultDic)
 
+@api_view(['GET'])
+def get_model_list(request):
+
+    host_ip_hash_string = hashlib.sha224(
+        request.get_host().encode()).hexdigest()
+    
+    saving_folder = "saved_models/" + host_ip_hash_string + "/"
+    model_list = []
+    for file in os.listdir(saving_folder):
+        if file.endswith(".h5"):
+            file_name = file.split('.')
+            clean_file_name = file_name[0].split('/')
+            model_list.append(clean_file_name[-1])
+
+    return JsonResponse({"modelList": model_list})
+
 
 @api_view(['POST'])
 def get_model_information(request):
@@ -504,13 +520,6 @@ def get_model_information(request):
         item = {"name": feature}
         featureArray.append(item)
 
-    model_list = []
-    for file in os.listdir(saving_folder):
-        if file.endswith(".h5"):
-            file_name = file.split('.')
-            clean_file_name = file_name[0].split('/')
-            model_list.append(clean_file_name[-1])
-
     feature_string = ""
     for feature in features_csv.columns:
         feature_string = feature_string + " " + feature
@@ -518,7 +527,6 @@ def get_model_information(request):
     infoDic = {
         "modelName": model_name,
         "featureArray": featureArray,
-        "modelList": model_list,
         "modelFeaturesString": feature_string,
         "lastModified": dt_m,
         "summaryExist": summary_exist,
@@ -544,6 +552,17 @@ def explain_model(request):
     label_name = request.data['labelName']
     calculate_summary = request.data['calculateSummary']
 
+    print("#####################################################")
+    print("model_name: ", model_name)
+    print("background_value: ", background_value)
+    print("example: ", example)
+    print("prediction_link: ", prediction_link)
+    print("fExampleArray: ", fExampleArray)
+    print("data_link: ", data_link)
+    print("label_name: ", label_name)
+    print("calculate_summary: ", calculate_summary)
+    print("#####################################################")
+
     host_ip_hash_string = hashlib.sha224(
         request.get_host().encode()).hexdigest()
     saving_formate = ".h5"
@@ -564,12 +583,13 @@ def explain_model(request):
         content = {'error_message': 'invalid data link!'}
         return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-    kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
+    med = X_test.median().values.reshape((1,X_test.shape[1]))
+    kernel_explainer = shap.KernelExplainer(loaded_model, med)
 
     if calculate_summary:
-        shap_values = kernel_explainer.shap_values(X_test) 
-        shap.summary_plot(shap_values[0], X_test, show=False)
-        plt.savefig("saved_models/" + model_name + '_summary_plot.png')
+        shap_values = kernel_explainer.shap_values(X_train) 
+        shap.summary_plot(shap_values[0], X_train, show=False)
+        plt.savefig("saved_models/" + model_name + '_summary_plot.png', bbox_inches='tight')
 
     if example == '1':
         cleanExampleDic = {}
@@ -602,7 +622,8 @@ def explain_model(request):
         try:
             path = 'https://drive.google.com/uc?export=download&id=' + \
                 prediction_link.split('/')[-2]
-            loaded_data = pd.read_csv(path)
+            data = pd.read_csv(path)
+            loaded_data = pd.get_dummies(data=data)
         except:
             content = {'message': 'Data Link is Invalid!'}
             return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
