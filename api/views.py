@@ -481,9 +481,16 @@ def get_model_list(request):
     # Get User unique host_ip_hash_string
     host_ip_hash_string = hashlib.sha224(
         request.get_host().encode()).hexdigest()
+
+    saved_models_exist = exists("saved_models/" + host_ip_hash_string + "/")
+
+    if saved_models_exist != True:
+        content = {'message': 'No saved models were found'}
+        return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     
     # Collect all saved Modells by Name and return the list
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
+
     model_list = []
     for file in os.listdir(saving_folder):
         if file.endswith(".h5"):
