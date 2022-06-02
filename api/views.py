@@ -84,23 +84,31 @@ def add_dense_layer(model, neurons_num, act):
 
 
 def compile_model(model, loss_function, optimizer, learning_rate):
+    metrics = ['mae', 'accuracy']
+    if(loss_function == 'categorical_crossentropy'):
+        loss_function = 'sparse_categorical_crossentropy'
+
+    if(loss_function == 'binary_crossentropy'):
+        metrics = ['accuracy', tf.keras.metrics.TruePositives(), tf.keras.metrics.TrueNegatives(
+        ), tf.keras.metrics.FalsePositives(), tf.keras.metrics.FalseNegatives()]
+
     if (optimizer == "adam"):
         model.compile(
             loss=loss_function,
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-            metrics=['mae', 'accuracy']
+            metrics=metrics
         )
     elif (optimizer == "sgd"):
         model.compile(
             loss=loss_function,
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-            metrics=['mae', 'accuracy']
+            metrics=metrics
         )
     else:
         model.compile(
             loss=loss_function,
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-            metrics=['mae', 'accuracy']
+            metrics=metrics
         )
     return model
 
@@ -225,10 +233,12 @@ def build_model(request):
                 print('Prediction Classes Number: ', prediction_classes_num)
                 if(prediction_classes_num > 2):
                     output_layer_activiation = "softmax"
+                    model.add(layers.Dense(prediction_classes_num,
+                                           activation=output_layer_activiation))
                 else:
                     output_layer_activiation = "sigmoid"
-            model.add(layers.Dense(prediction_classes_num,
-                      activation=output_layer_activiation))
+                    model.add(layers.Dense(1,
+                                           activation=output_layer_activiation))
         else:
             model.add(layers.Dense(1, activation="relu"))
 
@@ -269,6 +279,7 @@ def evaluate_model(request):
         testing_percentage = request.data['testingPercentage']/100
         do_normalize = request.data['doNormalize']
         is_classification = request.data['isClassification']
+        loss_function = request.data['lossFunc']
 
         host_ip_hash_string = hashlib.sha224(
             request.get_host().encode()).hexdigest()
@@ -295,16 +306,32 @@ def evaluate_model(request):
         medain_value = y_train.median()
         mean_value = y_train.mean()
 
-        evaluation_dict = {
-            'mae': float("{:.2f}".format(
-                evaluation[1])),
-            'accuracy': float("{:.2f}".format(
-                evaluation[2])),
-            'median': float("{:.2f}".format(
-                medain_value)),
-            'mean': float("{:.2f}".format(
-                mean_value)),
-        }
+        if(loss_function == 'binary_crossentropy'):
+            evaluation_dict = {
+                'accuracy': float("{:.2f}".format(
+                    evaluation[1])),
+                'truePositives': float("{:.2f}".format(
+                    evaluation[2])),
+                'trueNegatives': float("{:.2f}".format(
+                    evaluation[3])),
+                'falsePositives': float("{:.2f}".format(
+                    evaluation[4])),
+                'falseNegatives': float("{:.2f}".format(
+                    evaluation[5])),
+                'isBinary': True
+            }
+        else:
+            evaluation_dict = {
+                'mae': float("{:.2f}".format(
+                    evaluation[1])),
+                'accuracy': float("{:.2f}".format(
+                    evaluation[2])),
+                'median': float("{:.2f}".format(
+                    medain_value)),
+                'mean': float("{:.2f}".format(
+                    mean_value)),
+                'isBinary': False
+            }
 
         print("============ Evaluation =========> ", evaluation)
         return JsonResponse(evaluation_dict)
