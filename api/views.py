@@ -235,8 +235,6 @@ def build_model(request):
         ###################### Save some stuff for the SHAP Info boxes ######################
         # This primitive way of saving data was used because of the deadline
 
-        X_shap, y_shap = split_x_y(data_link, labels_name)
-        features_data_shap = X_shap.columns
         modelinfo_data_shap = [labels_name, data_link]
         
         evaluation = model.evaluate(X_test, y_test)
@@ -247,10 +245,6 @@ def build_model(request):
         modelinfo_data_shap.append(medain_value)
         modelinfo_data_shap.append(mean_value)
 
-        features_dataFrame = pd.DataFrame(0,
-                                          index=np.arange(1), columns=list(features_data_shap))
-        features_dataFrame.to_csv(
-            saving_folder + model_name + "_features.csv", index=False)
         modelinfo_dataFrame = pd.DataFrame(0,
                                            index=np.arange(1), columns=list(modelinfo_data_shap))
         modelinfo_dataFrame.to_csv(
@@ -371,7 +365,7 @@ def use_model(request):
 #################################################################################################################
 ##################################################### SHAP ######################################################
 
-
+# This end point is used to explain test data after training a new model
 @api_view(['POST'])
 def get_prediction_shap_values(request):
     prediction_link = request.data['predictionDataLink']
@@ -398,8 +392,8 @@ def get_prediction_shap_values(request):
     original_data_shape = pd.read_csv(
         saving_folder + model_name + "_data_shabe.csv")
 
-    med = X_test.median().values.reshape((1,X_test.shape[1]))
-    kernel_explainer = shap.KernelExplainer(loaded_model, med)
+    # med = X_test.median().values.reshape((1,X_test.shape[1]))
+    kernel_explainer = shap.KernelExplainer(loaded_model, X_test)
 
     loaded_data = load_google_drive_data(prediction_link)
 
@@ -423,7 +417,7 @@ def get_prediction_shap_values(request):
 
     return JsonResponse(jsonPlotArray, safe=False)
 
-
+# This Methode is used to render the model and explainer information in the explanation page
 @api_view(['POST'])
 def get_explainer_information(request):
     model_name = request.data['modelName']
@@ -439,6 +433,7 @@ def get_explainer_information(request):
     loaded_model = tf.keras.models.load_model(saving_path)
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
+    # Check again if the summary Plot exists, otherwise the collapsed Summary Plot Component will not be rendered
     summary_exist = exists("saved_models/" + model_name + '_summary_plot.png')
 
     background_value_int = int(background_value)
@@ -455,7 +450,9 @@ def get_explainer_information(request):
         content = {'error_message': 'invalid data link!'}
         return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-    kernel_explainer = shap.KernelExplainer(loaded_model, X_train)
+    # Get the Explainer Base Value
+    med = X_test.median().values.reshape((1,X_test.shape[1]))
+    kernel_explainer = shap.KernelExplainer(loaded_model, med)
 
     feature_string = ""
     for feature in X.columns:
@@ -471,19 +468,21 @@ def get_explainer_information(request):
         "summaryExist": summary_exist,
         "lastModified": dt_m,
         "loss": modelinfo_data_shape.columns[2],
-        "accuracy": modelinfo_data_shape.columns[3],
-        "median": modelinfo_data_shape.columns[4],
-        "mean": modelinfo_data_shape.columns[5]
+        "median": modelinfo_data_shape.columns[3],
+        "mean": modelinfo_data_shape.columns[4]
     }
 
     return JsonResponse(resultDic)
 
+# This End Point is used to fetch all saved Models and show them to the user in the drop down component 
 @api_view(['GET'])
 def get_model_list(request):
 
+    # Get User unique host_ip_hash_string
     host_ip_hash_string = hashlib.sha224(
         request.get_host().encode()).hexdigest()
     
+    # Collect all saved Modells by Name and return the list
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
     model_list = []
     for file in os.listdir(saving_folder):
@@ -495,8 +494,11 @@ def get_model_list(request):
     return JsonResponse({"modelList": model_list})
 
 
+# This End Point is used to Fetch Model Information after choosing a Model from the DropDown Component
 @api_view(['POST'])
 def get_model_information(request):
+    
+    # Get all Model Information by Model Name
     model_name = request.data['modelName']
 
     host_ip_hash_string = hashlib.sha224(
@@ -504,26 +506,33 @@ def get_model_information(request):
     saving_formate = ".h5"
     saving_name = model_name + saving_formate
     saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
+
+    # Get model creation date or last Date the Model was modified 
     last_modified = os.path.getmtime(saving_path)
     dt_m = datetime.datetime.fromtimestamp(last_modified)
     saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
+    # Check if the Model has already a summary Plot 
     summary_exist = exists("saved_models/" + model_name + '_summary_plot.png')
 
+    # Get Model Features and Information by Model Name
     features_csv = pd.read_csv(
-        saving_folder + model_name + "_features.csv")
+        saving_folder + model_name + "_data_shabe.csv")
     modelinfo_data_shape = pd.read_csv(
         saving_folder + model_name + "_modelinfo.csv")
 
+    # Collect Feature Names to give the user the option to ented the test data manuelly
     featureArray = []
     for feature in features_csv.columns:
         item = {"name": feature}
         featureArray.append(item)
 
+    # Collect Feature Names to show in the Information Box after choosing a Model from the DropDown List
     feature_string = ""
     for feature in features_csv.columns:
         feature_string = feature_string + " " + feature
 
+    # Collect all fetched Information in a Dic
     infoDic = {
         "modelName": model_name,
         "featureArray": featureArray,
@@ -533,14 +542,13 @@ def get_model_information(request):
         "labelName": modelinfo_data_shape.columns[0],
         "dataLink": modelinfo_data_shape.columns[1],
         "loss": modelinfo_data_shape.columns[2],
-        "accuracy": modelinfo_data_shape.columns[3],
-        "median": modelinfo_data_shape.columns[4],
-        "mean": modelinfo_data_shape.columns[5]
+        "median": modelinfo_data_shape.columns[3],
+        "mean": modelinfo_data_shape.columns[4]
     }
 
     return JsonResponse(infoDic)
 
-
+# This end point ist used to explain Entered or imported test data in the configuraion page
 @api_view(['POST'])
 def explain_model(request):
     model_name = request.data['modelName']
@@ -575,6 +583,7 @@ def explain_model(request):
 
     background_value_int = int(background_value)
 
+    # Split the Training Data to according to the user given background_value_int.
     try:
         X, y = split_x_y(data_link, label_name)
         X_train, X_test, y_train, y_test = split_train_test(
@@ -583,14 +592,19 @@ def explain_model(request):
         content = {'error_message': 'invalid data link!'}
         return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
+    # Calcualte the med of the X_test data for the KernelExplainer to fill the missing feature Values 
+    # We can also create the Explainer using shap.KernelExplainer(loaded_model, X_test) but for more efficiency we can use the med of all background Trainingdata
     med = X_test.median().values.reshape((1,X_test.shape[1]))
     kernel_explainer = shap.KernelExplainer(loaded_model, med)
 
+    # Check if the user wishes to Include the Summary Plot 
+    # The Summary Plot is calculated only one time for each Model 
     if calculate_summary:
         shap_values = kernel_explainer.shap_values(X_train) 
         shap.summary_plot(shap_values[0], X_train, show=False)
         plt.savefig("saved_models/" + model_name + '_summary_plot.png', bbox_inches='tight')
 
+    # If the user has choosen to enter the Test data manuelly
     if example == '1':
         cleanExampleDic = {}
         for key in fExampleArray.keys():
@@ -601,14 +615,20 @@ def explain_model(request):
 
         # wrap user example in a data frame
         exampleDataFrame = pd.DataFrame(cleanExampleDic, index=[0])
-        data_one_hot = pd.get_dummies(data=exampleDataFrame)
-
         filled_dataFrame = pd.DataFrame(
-            0, index=np.arange(len(data_one_hot)), columns=list(original_data_shape.columns))
-        filled_dataFrame.update(data_one_hot)
-        shap_values_list = kernel_explainer.shap_values(
-            filled_dataFrame.values)
+            0, index=np.arange(1), columns=list(original_data_shape.columns))
+        filled_dataFrame.update(exampleDataFrame)
 
+        # Calculate the shapley Values
+        try:
+            print("####################### before")
+            shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
+            print("####################### after")
+        except:
+            content = {'message': 'Entered Test Data is Invalid!'}
+            return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        # Collect Feature names, their effect from the model base value and the one_hot_encoded feature value
         subJsonPlotArray = []
         counter = 0
         for column in filled_dataFrame.columns:
@@ -618,24 +638,33 @@ def explain_model(request):
 
         return JsonResponse(subJsonPlotArray, safe=False)
 
+    # If the user has choosen to enter the Test data from google drive
     elif example == '2':
         try:
             path = 'https://drive.google.com/uc?export=download&id=' + \
                 prediction_link.split('/')[-2]
             data = pd.read_csv(path)
+            # The Model does not accept any String values so we have to encode all feature values to one hot formate
             loaded_data = pd.get_dummies(data=data)
         except:
             content = {'message': 'Data Link is Invalid!'}
             return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
+        # Fill the Pandas DataFrame with the imported Test data
         filled_dataFrame = pd.DataFrame(
             0, index=np.arange(len(loaded_data)), columns=list(original_data_shape.columns))
         filled_dataFrame.update(loaded_data)
 
-        shap_values_list = kernel_explainer.shap_values(
-            filled_dataFrame.values)
+        # Calculate the shapley Values
+        try:
+            shap_values_list = kernel_explainer.shap_values(filled_dataFrame.values)
+        except:
+            content = {'message': 'Imported Test Data is Invalid!'}
+            return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
         numEntries = len(shap_values_list[0])
 
+        # Collect Feature names, their effect from the model base value and the one_hot_encoded feature value
         jsonPlotArray = []
         for pred in range(0, numEntries):
             subJsonPlotArray = []
