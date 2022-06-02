@@ -392,8 +392,8 @@ def get_prediction_shap_values(request):
     original_data_shape = pd.read_csv(
         saving_folder + model_name + "_data_shabe.csv")
 
-    # med = X_test.median().values.reshape((1,X_test.shape[1]))
-    kernel_explainer = shap.KernelExplainer(loaded_model, X_test)
+    med = X_test.median().values.reshape((1,X_test.shape[1]))
+    kernel_explainer = shap.KernelExplainer(loaded_model, med)
 
     loaded_data = load_google_drive_data(prediction_link)
 
