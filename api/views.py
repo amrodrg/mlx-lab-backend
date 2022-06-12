@@ -52,11 +52,18 @@ def split_x_y_regression(data_link, labels_name):
     return X, y
 
 
-def split_x_y_classification(data_link, labels_name):
+def split_x_y_classification(data_link, labels_name, model_saving_folder):
     data = load_google_drive_data(data_link=data_link)  # load_data(data_link)
     X = data.drop(labels_name, axis=1)
     X_one_hot = pd.get_dummies(data=X)
     y = data[labels_name]
+
+    LABELS_CLASSES = y.value_counts().index.to_list()
+    labels = pd.DataFrame(LABELS_CLASSES)
+    print("========== label's classes:", labels)
+    labels.to_csv(
+        model_saving_folder + "_data_labels.csv", index=False)
+
     label_encouder = LabelEncoder()
     label_encouder.fit(y)
     y_encouded = label_encouder.transform(y)
@@ -182,7 +189,8 @@ def build_model(request):
         X, y = [], []
         try:
             if(is_classification):
-                X, y = split_x_y_classification(data_link, labels_name)
+                X, y = split_x_y_classification(
+                    data_link, labels_name, saving_folder + model_name)
             else:
                 X, y = split_x_y_regression(data_link, labels_name)
             print("========== Data splited to X and y ======================>")
@@ -236,7 +244,8 @@ def build_model(request):
         if(is_classification):
             if(automated_classes_num or prediction_classes_num <= 0):
                 prediction_classes_num = y_train.value_counts().count()
-                print('Prediction Classes Number: ', prediction_classes_num)
+                print('=========== Prediction Classes Number: ',
+                      prediction_classes_num, "=========>")
                 if(prediction_classes_num > 2):
                     output_layer_activiation = "softmax"
                     model.add(layers.Dense(prediction_classes_num,
@@ -291,6 +300,7 @@ def evaluate_model(request):
             request.get_host().encode()).hexdigest()
         saving_formate = ".h5"
         saving_name = model_name + saving_formate
+        saving_folder = "saved_models/" + host_ip_hash_string + "/"
         saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
 
         loaded_model = tf.keras.models.load_model(saving_path)
@@ -298,7 +308,8 @@ def evaluate_model(request):
         print("========== prepparing Data for evaluation ================================>")
         X, y = [], []
         if(is_classification):
-            X, y = split_x_y_classification(data_link, labels_name)
+            X, y = split_x_y_classification(
+                data_link, labels_name, saving_folder + model_name)
         else:
             X, y = split_x_y_regression(data_link, labels_name)
         X_train, X_test, y_train, y_test = split_train_test(
@@ -350,6 +361,7 @@ def use_model(request):
         model_name = request.data['modelName']
         prediction_data_link = request.data['predictionDataLink']
         do_normalize = request.data['doNormalize']
+        is_calssification = request.data['isClassification']
 
         host_ip_hash_string = hashlib.sha224(
             request.get_host().encode()).hexdigest()
@@ -362,6 +374,9 @@ def use_model(request):
 
         original_data_shape = pd.read_csv(
             saving_folder + model_name + "_data_shabe.csv")
+
+        data_labels_names = pd.read_csv(
+            saving_folder + model_name + "_data_labels.csv")
 
         loaded_data = load_google_drive_data(prediction_data_link)
         loaded_data = pd.get_dummies(data=loaded_data)
@@ -378,10 +393,18 @@ def use_model(request):
         predictions = loaded_model.predict(filled_dataFrame)
 
         predictions = predictions.tolist()
+        print(predictions)
+
         predictions_list = []
         for p in range(len(predictions)):
-            predictions_list.append(
-                {'idx': p, 'prediction': predictions[p][0]})
+            if(is_calssification):
+                max_value = max(predictions[p])
+                max_index = predictions[p].index(max_value)
+                predictions_list.append(
+                    {'idx': p, 'prediction': data_labels_names.iloc[max_index][0]})
+            else:
+                predictions_list.append(
+                    {'idx': p, 'prediction': predictions[p][0]})
 
         return JsonResponse(predictions_list, safe=False)
     return
