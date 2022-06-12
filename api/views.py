@@ -1,8 +1,6 @@
-
-from sklearn.datasets import load_diabetes
-from IPython.core.display import display, HTML
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder
+from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 import json
+import hashlib
 from django.shortcuts import render
 from django.http import JsonResponse
 from rest_framework import status
@@ -13,11 +11,11 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras import models
 from joblib import dump, load
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from json import JSONEncoder
-import hashlib
+from sklearn.preprocessing import OneHotEncoder
 
 # Variables
 INSURANCE_DATA_LINK = "https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/insurance.csv"
@@ -41,9 +39,15 @@ def load_google_drive_data(data_link):
 
 
 def split_x_y_regression(data_link, labels_name):
+    print("===================== loading data ... =====================>")
     data = load_google_drive_data(data_link=data_link)  # load_data(data_link)
+    print(data.head())
+    print("===================== one hot encodinggetting ... ==========>")
     data_one_hot = pd.get_dummies(data=data)
+    print(data_one_hot.head())
+    print("===================== dropping y from data ... =============>")
     X = data_one_hot.drop(labels_name, axis=1)
+    print("===================== getting y from data ... ==============>")
     y = data_one_hot[labels_name]
     return X, y
 
@@ -174,23 +178,25 @@ def build_model(request):
         saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
         saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
-        print("========== prepparing Data ================================>")
+        print("============ prepparing Data ================================>")
         X, y = [], []
         try:
             if(is_classification):
                 X, y = split_x_y_classification(data_link, labels_name)
             else:
                 X, y = split_x_y_regression(data_link, labels_name)
-            print("========== Data splited ================================>")
+            print("========== Data splited to X and y ======================>")
             X_train, X_test, y_train, y_test = split_train_test(
                 X, y, testing_percentage)
-            print("========== Data sorted to train and test =================>")
+            print("========== Data splited to train and test ===============>")
             X_train_normal = X_train
             if(do_normalize):
                 X_train_normal, scaler = normalize_data(X_train, X_train)
-                print("========== Data Normalized ================================>")
+                print("========== Data Normalized ==========================>")
                 scaler_filename = saving_folder + model_name + "_scaler"
+                Path(saving_folder).mkdir(parents=True, exist_ok=True)
                 dump(scaler, scaler_filename)
+                print("========== scaler saved =============================>")
         except:
             content = {'error_message': 'invalid data link!'}
             return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -242,11 +248,11 @@ def build_model(request):
         else:
             model.add(layers.Dense(1, activation="relu"))
 
-        print("========== Compiling =====================================>")
+        print("============== Compiling =====================================>")
         model = compile_model(model=model, loss_function=loss_function,
                               optimizer=optimizer, learning_rate=learning_rate)
 
-        print("========== Fitting Data ==================================>")
+        print("============== Fitting Data ==================================>")
         try:
             if(do_normalize):
                 model.fit(X_train_normal, y_train,
