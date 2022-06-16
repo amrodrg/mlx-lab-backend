@@ -1,4 +1,3 @@
-
 from sklearn.datasets import load_diabetes
 from IPython.core.display import display, HTML
 
@@ -9,7 +8,9 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder
 from calendar import day_abbr
 from os.path import exists
 from matplotlib.pyplot import figure
+
 import json
+import hashlib
 from django.shortcuts import render
 from django.http import JsonResponse
 from rest_framework import status
@@ -20,6 +21,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras import models
 from joblib import dump, load
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -52,18 +54,31 @@ def load_google_drive_data(data_link):
 
 
 def split_x_y_regression(data_link, labels_name):
+    print("===================== loading data ... =====================>")
     data = load_google_drive_data(data_link=data_link)  # load_data(data_link)
+    print(data.head())
+    print("===================== one hot encodinggetting ... ==========>")
     data_one_hot = pd.get_dummies(data=data)
+    print(data_one_hot.head())
+    print("===================== dropping y from data ... =============>")
     X = data_one_hot.drop(labels_name, axis=1)
+    print("===================== getting y from data ... ==============>")
     y = data_one_hot[labels_name]
     return X, y
 
 
-def split_x_y_classification(data_link, labels_name):
+def split_x_y_classification(data_link, labels_name, model_saving_folder):
     data = load_google_drive_data(data_link=data_link)  # load_data(data_link)
     X = data.drop(labels_name, axis=1)
     X_one_hot = pd.get_dummies(data=X)
     y = data[labels_name]
+
+    LABELS_CLASSES = y.value_counts().index.to_list()
+    labels = pd.DataFrame(LABELS_CLASSES)
+    print("========== label's classes:", labels)
+    labels.to_csv(
+        model_saving_folder + "_data_labels.csv", index=False)
+
     label_encouder = LabelEncoder()
     label_encouder.fit(y)
     y_encouded = label_encouder.transform(y)
@@ -185,23 +200,26 @@ def build_model(request):
         saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
         saving_folder = "saved_models/" + host_ip_hash_string + "/"
 
-        print("========== prepparing Data ================================>")
+        print("============ prepparing Data ================================>")
         X, y = [], []
         try:
             if(is_classification):
-                X, y = split_x_y_classification(data_link, labels_name)
+                X, y = split_x_y_classification(
+                    data_link, labels_name, saving_folder + model_name)
             else:
                 X, y = split_x_y_regression(data_link, labels_name)
-            print("========== Data splited ================================>")
+            print("========== Data splited to X and y ======================>")
             X_train, X_test, y_train, y_test = split_train_test(
                 X, y, testing_percentage)
-            print("========== Data sorted to train and test =================>")
+            print("========== Data splited to train and test ===============>")
             X_train_normal = X_train
             if(do_normalize):
                 X_train_normal, scaler = normalize_data(X_train, X_train)
-                print("========== Data Normalized ================================>")
+                print("========== Data Normalized ==========================>")
                 scaler_filename = saving_folder + model_name + "_scaler"
+                Path(saving_folder).mkdir(parents=True, exist_ok=True)
                 dump(scaler, scaler_filename)
+                print("========== scaler saved =============================>")
         except:
             content = {'error_message': 'invalid data link!'}
             return Response(data=content, status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -241,7 +259,8 @@ def build_model(request):
         if(is_classification):
             if(automated_classes_num or prediction_classes_num <= 0):
                 prediction_classes_num = y_train.value_counts().count()
-                print('Prediction Classes Number: ', prediction_classes_num)
+                print('=========== Prediction Classes Number: ',
+                      prediction_classes_num, "=========>")
                 if(prediction_classes_num > 2):
                     output_layer_activiation = "softmax"
                     model.add(layers.Dense(prediction_classes_num,
@@ -253,11 +272,11 @@ def build_model(request):
         else:
             model.add(layers.Dense(1, activation="relu"))
 
-        print("========== Compiling =====================================>")
+        print("============== Compiling =====================================>")
         model = compile_model(model=model, loss_function=loss_function,
                               optimizer=optimizer, learning_rate=learning_rate)
 
-        print("========== Fitting Data ==================================>")
+        print("============== Fitting Data ==================================>")
         try:
             if(do_normalize):
                 model.fit(X_train_normal, y_train,
@@ -315,6 +334,7 @@ def evaluate_model(request):
             request.get_host().encode()).hexdigest()
         saving_formate = ".h5"
         saving_name = model_name + saving_formate
+        saving_folder = "saved_models/" + host_ip_hash_string + "/"
         saving_path = "saved_models/" + host_ip_hash_string + "/" + saving_name
 
         loaded_model = tf.keras.models.load_model(saving_path)
@@ -322,7 +342,8 @@ def evaluate_model(request):
         print("========== prepparing Data for evaluation ================================>")
         X, y = [], []
         if(is_classification):
-            X, y = split_x_y_classification(data_link, labels_name)
+            X, y = split_x_y_classification(
+                data_link, labels_name, saving_folder + model_name)
         else:
             X, y = split_x_y_regression(data_link, labels_name)
         X_train, X_test, y_train, y_test = split_train_test(
@@ -374,6 +395,7 @@ def use_model(request):
         model_name = request.data['modelName']
         prediction_data_link = request.data['predictionDataLink']
         do_normalize = request.data['doNormalize']
+        is_calssification = request.data['isClassification']
 
         host_ip_hash_string = hashlib.sha224(
             request.get_host().encode()).hexdigest()
@@ -386,6 +408,9 @@ def use_model(request):
 
         original_data_shape = pd.read_csv(
             saving_folder + model_name + "_data_shabe.csv")
+
+        data_labels_names = pd.read_csv(
+            saving_folder + model_name + "_data_labels.csv")
 
         loaded_data = load_google_drive_data(prediction_data_link)
         loaded_data = pd.get_dummies(data=loaded_data)
@@ -402,10 +427,18 @@ def use_model(request):
         predictions = loaded_model.predict(filled_dataFrame)
 
         predictions = predictions.tolist()
+        print(predictions)
+
         predictions_list = []
         for p in range(len(predictions)):
-            predictions_list.append(
-                {'idx': p, 'prediction': predictions[p][0]})
+            if(is_calssification):
+                max_value = max(predictions[p])
+                max_index = predictions[p].index(max_value)
+                predictions_list.append(
+                    {'idx': p, 'prediction': data_labels_names.iloc[max_index][0]})
+            else:
+                predictions_list.append(
+                    {'idx': p, 'prediction': predictions[p][0]})
 
         return JsonResponse(predictions_list, safe=False)
     return
